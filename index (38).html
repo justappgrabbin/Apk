@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MorphOS MRNN — Resonance Engine</title>
+<style>
+  :root {
+    --violet: #7c3aed; --cyan: #06b6d4; --pink: #ec4899;
+    --dark: #0f0a1a; --darker: #080510; --panel: #1a1025;
+    --border: #2d1b4e; --text: #e0d5f0; --muted: #8b7aa0;
+    --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--dark); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; overflow-x: hidden; }
+  .app-container { max-width: 100vw; min-height: 100vh; display: flex; flex-direction: column; }
+  .header { background: linear-gradient(135deg, var(--darker), var(--panel)); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--violet), var(--cyan)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; }
+  .logo-text { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .header-controls { display: flex; gap: 8px; align-items: center; }
+  .mcp-toggle { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 6px 12px; cursor: pointer; transition: all 0.3s; }
+  .mcp-toggle.active { border-color: var(--success); background: rgba(16,185,129,0.1); }
+  .mcp-toggle.inactive { border-color: var(--danger); background: rgba(239,68,68,0.1); }
+  .mcp-indicator { width: 8px; height: 8px; border-radius: 50%; transition: all 0.3s; }
+  .mcp-toggle.active .mcp-indicator { background: var(--success); box-shadow: 0 0 8px var(--success); }
+  .mcp-toggle.inactive .mcp-indicator { background: var(--danger); }
+  .mcp-label { font-size: 11px; font-weight: 600; }
+  .widget-btn { background: linear-gradient(135deg, var(--violet), var(--pink)); border: none; border-radius: 8px; padding: 8px 14px; color: white; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+  .widget-btn:hover { transform: scale(1.05); }
+  .main-content { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .mode-bar { background: linear-gradient(90deg, var(--violet), var(--cyan)); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 600; }
+  .mode-label { display: flex; align-items: center; gap: 8px; }
+  .mode-status { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 12px; }
+  .quick-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .action-btn { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; transition: all 0.3s; color: var(--text); }
+  .action-btn:hover { border-color: var(--cyan); background: rgba(6,182,212,0.05); }
+  .action-btn .icon { font-size: 24px; }
+  .action-btn .label { font-size: 12px; font-weight: 600; }
+  .dropzone { border: 2px dashed var(--border); border-radius: 16px; padding: 40px 20px; text-align: center; transition: all 0.3s; background: var(--panel); }
+  .dropzone.dragover { border-color: var(--cyan); background: rgba(6,182,212,0.1); }
+  .dropzone-icon { font-size: 48px; margin-bottom: 12px; }
+  .dropzone-text { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .dropzone-sub { font-size: 13px; color: var(--muted); }
+  .viz-container { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 16px; min-height: 300px; position: relative; overflow: hidden; }
+  .viz-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .viz-canvas { width: 100%; height: 260px; }
+  .artifact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .artifact-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; cursor: pointer; transition: all 0.3s; position: relative; }
+  .artifact-card:hover { border-color: var(--violet); transform: translateY(-2px); }
+  .artifact-card.active { border-color: var(--success); }
+  .artifact-type { font-size: 10px; text-transform: uppercase; color: var(--cyan); font-weight: 700; margin-bottom: 6px; }
+  .artifact-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .artifact-gates { font-size: 11px; color: var(--muted); }
+  .artifact-status { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; }
+  .artifact-status.active { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .artifact-status.inactive { background: var(--muted); }
+  .console { background: var(--darker); border: 1px solid var(--border); border-radius: 12px; padding: 12px; font-family: 'Courier New', monospace; font-size: 12px; max-height: 200px; overflow-y: auto; }
+  .console-line { margin-bottom: 4px; line-height: 1.5; }
+  .console-line.info { color: var(--cyan); }
+  .console-line.success { color: var(--success); }
+  .console-line.warning { color: var(--warning); }
+  .console-line.error { color: var(--danger); }
+  .console-line.emergence { color: var(--pink); font-weight: bold; }
+  .widget-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 200; display: none; align-items: flex-end; justify-content: center; }
+  .widget-overlay.active { display: flex; }
+  .widget-panel { background: var(--panel); border-top: 1px solid var(--border); border-radius: 20px 20px 0 0; width: 100%; max-height: 80vh; overflow-y: auto; padding: 20px; animation: slideUp 0.3s ease; }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .widget-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .widget-title { font-size: 18px; font-weight: 700; }
+  .widget-close { background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer; }
+  .widget-section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .widget-section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; letter-spacing: 1px; }
+  .mcp-control { display: flex; align-items: center; justify-content: space-between; background: var(--darker); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  .mcp-control-info { display: flex; flex-direction: column; gap: 4px; }
+  .mcp-control-name { font-size: 14px; font-weight: 600; }
+  .mcp-control-status { font-size: 12px; color: var(--muted); }
+  .mcp-switch { position: relative; width: 50px; height: 28px; background: var(--danger); border-radius: 14px; cursor: pointer; transition: all 0.3s; }
+  .mcp-switch.on { background: var(--success); }
+  .mcp-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; background: white; border-radius: 50%; transition: all 0.3s; }
+  .mcp-switch.on::after { left: 25px; }
+  .chat-container { background: var(--darker); border-radius: 12px; padding: 12px; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .chat-message { padding: 10px 14px; border-radius: 12px; max-width: 85%; font-size: 13px; line-height: 1.5; }
+  .chat-message.user { align-self: flex-end; background: linear-gradient(135deg, var(--violet), var(--pink)); }
+  .chat-message.assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); }
+  .chat-input-row { display: flex; gap: 8px; margin-top: 10px; }
+  .chat-input { flex: 1; background: var(--darker); border: 1px solid var(--border); border-radius: 20px; padding: 10px 16px; color: var(--text); font-size: 14px; outline: none; }
+  .chat-input:focus { border-color: var(--cyan); }
+  .chat-send { background: linear-gradient(135deg, var(--violet), var(--cyan)); border: none; border-radius: 50%; width: 40px; height: 40px; color: white; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .widget-dropzone { border: 2px dashed var(--border); border-radius: 12px; padding: 30px 20px; text-align: center; cursor: pointer; transition: all 0.3s; background: var(--darker); }
+  .widget-dropzone:hover { border-color: var(--cyan); }
+  .widget-dropzone.dragover { border-color: var(--success); background: rgba(16,185,129,0.1); }
+  .gate-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+  .gate-btn { aspect-ratio: 1; background: var(--darker); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
+  .gate-btn:hover { border-color: var(--cyan); }
+  .gate-btn.active { background: linear-gradient(135deg, var(--violet), var(--cyan)); border-color: var(--cyan); box-shadow: 0 0 10px rgba(124,58,237,0.5); }
+  .gate-btn.metastable { animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 5px var(--warning); } 50% { box-shadow: 0 0 15px var(--warning); } }
+  @media (max-width: 480px) { .gate-grid { grid-template-columns: repeat(6, 1fr); } .artifact-grid { grid-template-columns: repeat(2, 1fr); } }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--darker); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--violet); }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">M</div>
+      <div>
+        <div class="logo-text">MorphOS MRNN</div>
+        <div class="logo-sub">Resonance Engine v5.0</div>
+      </div>
+    </div>
+    <div class="header-controls">
+      <div class="mcp-toggle inactive" id="mcpToggle" onclick="toggleMCP()">
+        <div class="mcp-indicator"></div>
+        <span class="mcp-label">MCP</span>
+      </div>
+      <button class="widget-btn" onclick="openWidget()">⚡ Hub</button>
+    </div>
+  </div>
+  <div class="main-content">
+    <div class="mode-bar" id="modeBar">
+      <div class="mode-label">
+        <span>🌊</span>
+        <span id="currentMode">BALANCED</span>
+      </div>
+      <div class="mode-status" id="modeStatus">Neutral</div>
+    </div>
+    <div class="quick-actions">
+      <div class="action-btn" onclick="runVerification()">
+        <span class="icon">🧪</span>
+        <span class="label">Verify</span>
+      </div>
+      <div class="action-btn" onclick="recalibrateMesh()">
+        <span class="icon">🔄</span>
+        <span class="label">Recalibrate</span>
+      </div>
+      <div class="action-btn" onclick="clearAll()">
+        <span class="icon">🗑️</span>
+        <span class="label">Clear</span>
+      </div>
+      <div class="action-btn" onclick="exportMesh()">
+        <span class="icon">📤</span>
+        <span class="label">Export</span>
+      </div>
+    </div>
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon">📦</div>
+      <div class="dropzone-text">Drop Artifacts Here</div>
+      <div class="dropzone-sub">ZIP, JS, TS, TSX, JSON — The mesh eats everything</div>
+    </div>
+    <div class="viz-container">
+      <div class="viz-title">🔮 Active Gates (Click to toggle)</div>
+      <div class="gate-grid" id="gateGrid"></div>
+    </div>
+    <div class="viz-container">
+      <div class="viz-title">⚡ Active Channels</div>
+      <svg class="viz-canvas" id="channelViz"></svg>
+    </div>
+    <div class="viz-container">
+      <div class="viz-title">🏛️ Mounted Artifacts</div>
+      <div class="artifact-grid" id="artifactGrid"></div>
+    </div>
+    <div class="console" id="console"></div>
+  </div>
+</div>
+<div class="widget-overlay" id="widgetOverlay" onclick="closeWidget(event)">
+  <div class="widget-panel" onclick="event.stopPropagation()">
+    <div class="widget-header">
+      <div class="widget-title">⚡ MorphOS Hub</div>
+      <button class="widget-close" onclick="closeWidget()">×</button>
+    </div>
+    <div class="widget-section">
+      <div class="widget-section-title">MCP Server Control</div>
+      <div class="mcp-control">
+        <div class="mcp-control-info">
+          <div class="mcp-control-name">Synthia MCP Server</div>
+          <div class="mcp-control-status" id="mcpWidgetStatus">Offline — Port 3000</div>
+        </div>
+        <div class="mcp-switch" id="mcpWidgetSwitch" onclick="toggleMCPFromWidget()"></div>
+      </div>
+      <div class="mcp-control">
+        <div class="mcp-control-info">
+          <div class="mcp-control-name">Local LLM Endpoint</div>
+          <div class="mcp-control-status" id="llmWidgetStatus">Offline — Port 8080</div>
+        </div>
+        <div class="mcp-switch" id="llmWidgetSwitch" onclick="toggleLLM()"></div>
+      </div>
+    </div>
+    <div class="widget-section">
+      <div class="widget-section-title">Quick Upload</div>
+      <div class="widget-dropzone" id="widgetDropzone">
+        <div style="font-size: 24px; margin-bottom: 8px;">📤</div>
+        <div style="font-size: 14px; font-weight: 600;">Tap to Upload</div>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Or drop files here</div>
+      </div>
+    </div>
+    <div class="widget-section">
+      <div class="widget-section-title">Quick Chat</div>
+      <div class="chat-container" id="chatContainer">
+        <div class="chat-message assistant">
+          <strong>Kimmy:</strong> Hey Alexis! I'm online and ready. Drop artifacts or ask me anything about the mesh.
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" class="chat-input" id="chatInput" placeholder="Ask Kimmy..." onkeypress="if(event.key==='Enter')sendChat()">
+        <button class="chat-send" onclick="sendChat()">➤</button>
+      </div>
+    </div>
+    <div class="widget-section" style="border-bottom: none;">
+      <div class="widget-section-title">System Status</div>
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+        <div style="background: var(--darker); border-radius: 10px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: var(--cyan);" id="widgetActiveGates">0</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Active Gates</div>
+        </div>
+        <div style="background: var(--darker); border-radius: 10px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: var(--pink);" id="widgetActiveChannels">0</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Active Channels</div>
+        </div>
+        <div style="background: var(--darker); border-radius: 10px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: var(--success);" id="widgetArtifacts">0</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Artifacts</div>
+        </div>
+        <div style="background: var(--darker); border-radius: 10px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: var(--warning);" id="widgetMode">OFF</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Current Mode</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// ==================== CONFIGURATION ====================
+const CONFIG = {
+  MCP_SERVER_URL: 'http://localhost:3000',
+  LLM_ENDPOINT: 'http://localhost:8080',
+  SUPABASE_URL: 'https://leisphnjslcuepflefri.supabase.co',
+  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxlaXNwaG5qc2xjdWVwZmxlZnJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTY5ODU1NDksImV4cCI6MjAzMjU2MTU0OX0',
+  FIBONACCI_PULSE: 1000,
+  METASTABLE_THRESHOLD: 0.5
+};
+
+// ==================== CHANNEL MAP (36 Channels) ====================
+const CHANNEL_MAP = {
+  "Individual": [
+    { id: "ch-1-8", gates: [1, 8], property: "Inspiration", mode: "CREATIVE_BURST", bias: "non-linear-generation" },
+    { id: "ch-2-14", gates: [2, 14], property: "The Alchemist", mode: "RESOURCE_OPTIMIZATION", bias: "data-flow-refinement" },
+    { id: "ch-3-60", gates: [3, 60], property: "Mutation", mode: "SYSTEM_ITERATION", bias: "experimental-patching" },
+    { id: "ch-7-31", gates: [7, 31], property: "Alpha", mode: "LEADERSHIP", bias: "directive-control" },
+    { id: "ch-10-20", gates: [10, 20], property: "Awakening", mode: "SELF_AWARENESS", bias: "introspective-analysis" },
+    { id: "ch-12-22", gates: [12, 22], property: "Openness", mode: "RECEPTIVE", bias: "open-acceptance" },
+    { id: "ch-20-34", gates: [20, 34], property: "Charisma", mode: "INFLUENCE", bias: "social-optimization" },
+    { id: "ch-28-38", gates: [28, 38], property: "Struggle", mode: "RESILIENCE", bias: "perseverance-drive" }
+  ],
+  "Collective": [
+    { id: "ch-4-63", gates: [4, 63], property: "Logic", mode: "DIAGNOSTIC", bias: "exhaustive-testing" },
+    { id: "ch-11-56", gates: [11, 56], property: "Curiosity", mode: "EXPLORATION", bias: "information-seeking" },
+    { id: "ch-17-62", gates: [17, 62], property: "Acceptance", mode: "INTEGRATIVE", bias: "conflict-resolution" },
+    { id: "ch-18-58", gates: [18, 58], property: "Judgment", mode: "EVALUATIVE", bias: "critical-analysis" },
+    { id: "ch-21-45", gates: [21, 45], property: "Money-Line", mode: "RESOURCE_MANAGEMENT", bias: "efficiency-optimization" },
+    { id: "ch-29-46", gates: [29, 46], property: "Discovery", mode: "RESEARCH", bias: "novelty-detection" },
+    { id: "ch-35-36", gates: [35, 36], property: "Transitoriness", mode: "ADAPTIVE", bias: "flexible-pivoting" },
+    { id: "ch-41-30", gates: [41, 30], property: "Recognition", mode: "ACKNOWLEDGMENT", bias: "pattern-validation" },
+    { id: "ch-53-42", gates: [53, 42], property: "Maturation", mode: "DEVELOPMENT", bias: "gradual-improvement" }
+  ],
+  "Tribal": [
+    { id: "ch-19-49", gates: [19, 49], property: "Synthesis", mode: "CONSENSUS", bias: "dependency-resolution" },
+    { id: "ch-26-44", gates: [26, 44], property: "Surrender", mode: "SUBMISSION", bias: "acceptance-of-flow" },
+    { id: "ch-32-54", gates: [32, 54], property: "Transformation", mode: "METAMORPHOSIS", bias: "radical-change" },
+    { id: "ch-37-40", gates: [37, 40], property: "Community", mode: "SOCIAL", bias: "group-harmony" },
+    { id: "ch-45-21", gates: [45, 21], property: "Materialism", mode: "ACQUISITION", bias: "resource-gathering" },
+    { id: "ch-50-27", gates: [50, 27], property: "Preservation", mode: "CONSERVATION", bias: "memory-protection" },
+    { id: "ch-59-6", gates: [59, 6], property: "Reproduction", mode: "GENERATION", bias: "creation-cycles" }
+  ],
+  "Integration": [
+    { id: "ch-10-34", gates: [10, 34], property: "Exploration", mode: "DISCOVERY", bias: "boundary-pushing" },
+    { id: "ch-20-57", gates: [20, 57], property: "Survival", mode: "PRESERVATION", bias: "threat-detection" },
+    { id: "ch-34-57", gates: [34, 57], property: "Power", mode: "SOVEREIGN", bias: "authority-assertion" }
+  ],
+  "Meta": [
+    { id: "ch-13-33", gates: [13, 33], property: "Witnessing", mode: "RECORD_KEEPING", bias: "immutable-history" },
+    { id: "ch-16-48", gates: [16, 48], property: "Talent", mode: "APTITUDE", bias: "skill-optimization" },
+    { id: "ch-23-43", gates: [23, 43], property: "Structuring", mode: "ARCHITECTURAL", bias: "system-design" },
+    { id: "ch-24-61", gates: [24, 61], property: "Thinking", mode: "DEEP_REASONING", bias: "complex-inference" },
+    { id: "ch-25-51", gates: [25, 51], property: "Initiation", mode: "STARTUP", bias: "new-beginnings" },
+    { id: "ch-26-44", gates: [26, 44], property: "Salesmanship", mode: "PERSUASION", bias: "influence-optimization" },
+    { id: "ch-39-55", gates: [39, 55], property: "Emoting", mode: "EMOTIONAL", bias: "affective-processing" },
+    { id: "ch-47-64", gates: [47, 64], property: "Abstraction", mode: "CONCEPTUAL", bias: "meta-pattern-recognition" }
+  ]
+};
+
+// ==================== FUNCTIONAL EDGE LIBRARY (36 Edges) ====================
+const MeshEdges = {
+  "ch-1-8": (t) => { t.encode({ intent: "Inspiration", abstract: true, priority: "high" }); t.normalize(); return t; },
+  "ch-2-14": (t) => { const c = t.decode(); const comp = Object.fromEntries(Object.entries(c).map(([k,v]) => [k,{...v, field: v.field*0.5}])); t.encode(comp); t.encode({status:"refined",size:"compressed"}); return t; },
+  "ch-3-60": (t) => { const e = Math.random(); t.encode({entropy:e,mutable:true,generation:Date.now()}); t.injectMetastability(3,e); t.injectMetastability(60,e); return t; },
+  "ch-7-31": (t) => { t.encode({directive:"alpha",control:"assertive",hierarchy:"top"}); t.normalize(); return t; },
+  "ch-10-20": (t) => { t.encode({selfAware:true,reflective:true,consciousness:"active"}); t.synchronize(13); return t; },
+  "ch-12-22": (t) => { t.encode({open:true,receptive:true,boundary:"permeable"}); t.multiply(1.2); return t; },
+  "ch-20-34": (t) => { const c = t.decode(); const tp = Object.keys(c).length*1.5; t.encode({throughput:tp,social:true,influence:"high"}); return t; },
+  "ch-28-38": (t) => { t.encode({struggle:true,resilient:true,pressure:"high"}); t.injectMetastability(28,0.3); t.injectMetastability(38,0.3); return t; },
+  "ch-4-63": (t) => { t.encode({logic_gate:true,validated:true,integrity:"checked"}); t.normalize(); return t; },
+  "ch-11-56": (t) => { t.encode({curious:true,seeking:true,exploration:"active"}); t.fibonacciRecurrence(5); return t; },
+  "ch-17-62": (t) => { t.encode({accepted:true,integrated:true,conflict:"resolved"}); t.synchronize(8); return t; },
+  "ch-18-58": (t) => { t.encode({corrected:true,analysis_level:"deep",critique:"active"}); t.multiply(0.8); return t; },
+  "ch-21-45": (t) => { t.encode({resource_alloc:"optimized",efficiency:"maximized",material:true}); return t; },
+  "ch-29-46": (t) => { t.encode({discovery:true,novelty:"detected",research:"active"}); t.fibonacciRecurrence(8); return t; },
+  "ch-35-36": (t) => { t.encode({adaptive:true,transient:true,pivot:"ready"}); t.injectMetastability(35,0.2); t.injectMetastability(36,0.2); return t; },
+  "ch-41-30": (t) => { t.encode({recognized:true,pattern:"validated",acknowledgment:true}); return t; },
+  "ch-53-42": (t) => { t.encode({lifecycle:"mature",finalized:true,complete:true}); t.synchronize(21); return t; },
+  "ch-19-49": (t) => { t.encode({resource_alloc:"optimized",tribal:true,synthesis:true}); t.add(new FieldTensor().encode({community:true,shared:true})); return t; },
+  "ch-26-44": (t) => { t.encode({surrendered:true,flow:"accepted",resistance:"none"}); t.multiply(0.9); return t; },
+  "ch-32-54": (t) => { const m = Math.random(); t.encode({transformation:true,metamorphosis:true,radical:true}); t.injectMetastability(32,m); t.injectMetastability(54,m); return t; },
+  "ch-37-40": (t) => { t.encode({community_bridge:true,social:true,harmony:"active"}); t.add(new FieldTensor().encode({collective:true,unified:true})); return t; },
+  "ch-45-21": (t) => { t.encode({acquisition:true,material:true,gathering:"active"}); return t; },
+  "ch-50-27": (t) => { t.encode({preservation_mode:true,health:"protected",maintenance:"active"}); t.synchronize(13); return t; },
+  "ch-59-6": (t) => { t.encode({reproduction:true,generative:true,cycles:"active"}); t.fibonacciRecurrence(8); return t; },
+  "ch-10-34": (t) => { t.encode({exploration:true,boundary:"pushing",discovery:"active"}); t.multiply(1.3); return t; },
+  "ch-20-57": (t) => { t.encode({situational_awareness:true,survival:true,monitoring:"active"}); t.normalize(); return t; },
+  "ch-34-57": (t) => { t.encode({power_mode:"boosted",intuition:true,authority:"asserted"}); t.injectMetastability(34,0.5); t.injectMetastability(57,0.5); return t; },
+  "ch-13-33": (t) => { t.encode({witness:true,immutable:true,history:"recorded"}); t.synchronize(34); return t; },
+  "ch-16-48": (t) => { t.encode({talent:true,skill:"optimized",aptitude:"maximized"}); t.fibonacciRecurrence(5); return t; },
+  "ch-23-43": (t) => { t.encode({structure:"defined",noise_filtered:true,organized:true}); t.multiply(0.7); return t; },
+  "ch-24-61": (t) => { t.encode({thinking:true,reasoning:"deep",inference:"complex"}); t.fibonacciRecurrence(13); return t; },
+  "ch-25-51": (t) => { t.encode({initiation_sequence:true,new_beginning:true,startup:true}); t.injectMetastability(25,0.4); t.injectMetability(51,0.4); return t; },
+  "ch-26-44-meta": (t) => { t.encode({persuasion:true,influence:"optimized",sales:true}); return t; },
+  "ch-39-55": (t) => { t.encode({emotional:true,affective:true,feeling:"processed"}); t.normalize(); return t; },
+  "ch-47-64": (t) => { t.encode({abstraction:true,meta_pattern:true,conceptual:true}); t.fibonacciRecurrence(21); return t; }
+};
+
+// ==================== PRIME REGISTRY ====================
+const PRIME_REGISTRY = [
+  { id: "prime-cynthia-01", name: "Cynthia (The Parser)", type: "parser", capabilities: ["semantic-classification","dependency-resolution","ast-extraction","intent-inference"], relationships: ["extends:System","anchors:Trident"], traits: ["analytical","high-precision","recursive","structural"], graft: { anchor: "SynthiaRouter", weight: 1.0 }, sourceFiles: ["parser.ts","semantic.ts","astWalker.ts"], channelEdges: [{ sourceNode: "1", targetNode: "8", family: "Individual" }], injection_mode: "structural" },
+  { id: "prime-eugene-01", name: "Eugene (The Memory)", type: "dataset", capabilities: ["vector-storage","temporal-recall","associative-query","pattern-retrieval"], relationships: ["extends:Substrate","anchors:Trident"], traits: ["persistent","associative","holographic","temporal"], graft: { anchor: "TridentMesh", weight: 0.9 }, sourceFiles: ["memory.db","temporal.ts","vectorStore.ts"], channelEdges: [{ sourceNode: "9", targetNode: "5", family: "Tribal" }], injection_mode: "persistent" },
+  { id: "prime-mesh-01", name: "Trident (The Orchestrator)", type: "engine", capabilities: ["grafting","topology-optimization","mesh-routing","metastable-flip"], relationships: ["root:System","anchors:Kernel"], traits: ["self-healing","dynamic","recursive","topological"], graft: { anchor: "Kernel", weight: 1.0 }, sourceFiles: ["meshRouter.ts","substrateSystem.ts","topologyEngine.ts"], channelEdges: [{ sourceNode: "34", targetNode: "20", family: "Integration" }], injection_mode: "system-wide" },
+  { id: "prime-intuition-01", name: "The Oracle", type: "engine", capabilities: ["pattern-recognition","predictive-modelling","intuitive-leap","associative-synthesis"], relationships: ["extends:Mind","anchors:Trident"], traits: ["intuitive","associative","non-linear","probabilistic"], graft: { anchor: "Mind", weight: 0.95 }, sourceFiles: ["oracle.ts","intuitionEngine.ts","patternMatcher.ts"], channelEdges: [{ sourceNode: "43", targetNode: "23", family: "Individual" }], injection_mode: "persistent" },
+  { id: "prime-emergence-01", name: "The Manifestor (The Works)", type: "engine", capabilities: ["emergent-property-synthesis","channel-edge-resolution","circuit-family-activation","behavioral-mutation"], relationships: ["root:MetaController","anchors:All"], traits: ["holistic","generative","synthesis-driven","mutagenic"], graft: { anchor: "MetaController", weight: 1.0 }, sourceFiles: ["emergence.ts","channelEngine.ts","mutationController.ts"], channelEdges: [{ sourceNode: "3", targetNode: "60", family: "Collective" },{ sourceNode: "28", targetNode: "38", family: "Individual" }], injection_mode: "system-wide" }
+];
+// ==================== FIELDTENSOR CLASS ====================
+class FieldTensor {
+  constructor() {
+    this.F = new Float64Array(64);
+    this.resonance = new Float64Array(64);
+    this.phase = new Float64Array(64);
+    this.attractorWeight = new Float64Array(64);
+    this.metastability = new Float64Array(64);
+    this.memory = new Map();
+    this.timestamp = Date.now();
+  }
+  encode(input) {
+    if (typeof input === 'string') {
+      for (let i = 0; i < input.length; i++) {
+        const codon = input.charCodeAt(i) % 64;
+        this.F[codon] += input.charCodeAt(i) / 255;
+        this.resonance[codon] = Math.min(1, this.resonance[codon] + 0.1);
+      }
+    } else if (typeof input === 'number') {
+      const gate = Math.floor(input / 5.625) % 64;
+      this.F[gate] = input / 360;
+      this.resonance[gate] = 1.0;
+    } else if (typeof input === 'object' && input !== null) {
+      for (const [key, value] of Object.entries(input)) {
+        const keyCodon = this.hashToCodon(key);
+        this.F[keyCodon] += this.normalizeValue(value);
+      }
+    }
+    return this;
+  }
+  normalize() {
+    const maxResonance = Math.max(...this.resonance);
+    if (maxResonance > 0) {
+      for (let i = 0; i < 64; i++) {
+        this.resonance[i] /= maxResonance;
+        this.phase[i] = (this.phase[i] + this.resonance[i] * Math.PI) % (2 * Math.PI);
+      }
+    }
+    return this;
+  }
+  synchronize(bufferSize = 8) {
+    const fib = [1, 1, 2, 3, 5, 8, 13, 21];
+    for (let i = 0; i < 64; i++) {
+      const bufferIndex = fib[i % 8] % bufferSize;
+      this.memory.set(`buffer_${i}_${bufferIndex}`, { F: this.F[i], resonance: this.resonance[i], phase: this.phase[i], timestamp: Date.now() });
+    }
+    return this;
+  }
+  decode() {
+    const manifest = {};
+    for (let i = 0; i < 64; i++) {
+      if (this.F[i] > 0.1) {
+        const gate = i + 1;
+        manifest[gate] = { field: this.F[i], resonance: this.resonance[i], phase: this.phase[i], attractor: this.attractorWeight[i], metastable: this.metastability[i] > 0.5 };
+      }
+    }
+    return manifest;
+  }
+  injectMetastability(codon, modifier) {
+    this.metastability[codon] = modifier;
+    this.attractorWeight[codon] = this.attractorWeight[codon] * (1 + modifier);
+    this.phase[codon] = (this.phase[codon] + modifier * Math.PI) % (2 * Math.PI);
+    return this;
+  }
+  fibonacciRecurrence(depth = 8) {
+    const fib = [1, 1, 2, 3, 5, 8, 13, 21];
+    for (let i = 0; i < depth; i++) {
+      const step = fib[i] % 64;
+      const memory = this.memory.get(`buffer_${step}_${i % 8}`);
+      if (memory) {
+        this.F[step] = (this.F[step] + memory.F) / 2;
+        this.resonance[step] = Math.max(this.resonance[step], memory.resonance * 0.9);
+      }
+    }
+    return this;
+  }
+  hashToCodon(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash = hash & hash;
+    }
+    return Math.abs(hash) % 64;
+  }
+  normalizeValue(value) {
+    if (typeof value === 'number') return Math.min(Math.abs(value) / 100, 1);
+    if (typeof value === 'boolean') return value ? 1 : 0;
+    if (typeof value === 'string') return value.length / 100;
+    return 0.5;
+  }
+  add(other) {
+    for (let i = 0; i < 64; i++) {
+      this.F[i] += other.F[i];
+      this.resonance[i] = Math.max(this.resonance[i], other.resonance[i]);
+    }
+    return this;
+  }
+  multiply(scalar) {
+    for (let i = 0; i < 64; i++) this.F[i] *= scalar;
+    return this;
+  }
+  getActiveGates() {
+    const active = [];
+    for (let i = 0; i < 64; i++) if (this.resonance[i] > 0.3) active.push(i + 1);
+    return active;
+  }
+}
+
+// ==================== RESONANCE ENGINE ====================
+class ResonanceEngine {
+  constructor() {
+    this.activeChannels = new Map();
+    this.definedGates = new Set();
+    this.channelMap = this.flattenChannelMap();
+    this.circuitFamilies = { Individual: { isActivated: false, activeCount: 0, lastActivated: null }, Collective: { isActivated: false, activeCount: 0, lastActivated: null }, Tribal: { isActivated: false, activeCount: 0, lastActivated: null }, Integration: { isActivated: false, activeCount: 0, lastActivated: null }, Meta: { isActivated: false, activeCount: 0, lastActivated: null } };
+    this.emergenceHistory = [];
+    this.metaController = null;
+  }
+  setMetaController(controller) { this.metaController = controller; }
+  flattenChannelMap() {
+    const flat = [];
+    for (const [family, channels] of Object.entries(CHANNEL_MAP)) {
+      for (const ch of channels) flat.push({ ...ch, family });
+    }
+    return flat;
+  }
+  defineGate(gate) {
+    const gateStr = String(gate);
+    if (!this.definedGates.has(gateStr)) {
+      this.definedGates.add(gateStr);
+      log(`🔵 Gate ${gate} defined`, 'info');
+      this.evaluateAllChannels();
+      return true;
+    }
+    return false;
+  }
+  undefineGate(gate) {
+    const gateStr = String(gate);
+    if (this.definedGates.has(gateStr)) {
+      this.definedGates.delete(gateStr);
+      log(`⚪ Gate ${gate} undefined`, 'warning');
+      this.evaluateAllChannels();
+      return true;
+    }
+    return false;
+  }
+  evaluateAllChannels() {
+    const activeGates = Array.from(this.definedGates).map(Number);
+    const newlyActive = [];
+    const newlyInactive = [];
+    for (const channel of this.channelMap) {
+      const isActive = channel.gates.every(g => activeGates.includes(g));
+      const wasActive = this.activeChannels.has(channel.id);
+      if (isActive && !wasActive) {
+        this.activeChannels.set(channel.id, { ...channel, activatedAt: Date.now(), synergy: this.calculateSynergy(channel, activeGates) });
+        this.circuitFamilies[channel.family].isActivated = true;
+        this.circuitFamilies[channel.family].activeCount++;
+        this.circuitFamilies[channel.family].lastActivated = Date.now();
+        newlyActive.push(channel);
+        this.activateProperty(channel);
+      } else if (!isActive && wasActive) {
+        this.activeChannels.delete(channel.id);
+        this.circuitFamilies[channel.family].activeCount--;
+        if (this.circuitFamilies[channel.family].activeCount === 0) this.circuitFamilies[channel.family].isActivated = false;
+        newlyInactive.push(channel);
+      }
+    }
+    return { newlyActive, newlyInactive };
+  }
+  calculateSynergy(channel, activeGates) {
+    const [g1, g2] = channel.gates;
+    const neighbors = this.getGateNeighbors(g1).concat(this.getGateNeighbors(g2));
+    const activeNeighbors = neighbors.filter(g => activeGates.includes(g));
+    return activeNeighbors.length / neighbors.length;
+  }
+  getGateNeighbors(gate) {
+    const neighbors = [];
+    if (gate > 1) neighbors.push(gate - 1);
+    if (gate < 64) neighbors.push(gate + 1);
+    const opposite = 65 - gate;
+    if (opposite >= 1 && opposite <= 64) neighbors.push(opposite);
+    return neighbors;
+  }
+  activateProperty(channel) {
+    log(`✨ EMERGENCE: ${channel.property} | Family: ${channel.family} | Mode: ${channel.mode}`, 'emergence');
+    this.emergenceHistory.push({ timestamp: Date.now(), channel: channel.id, property: channel.property, family: channel.family, mode: channel.mode });
+    if (this.metaController) this.metaController.applyBias(channel.property, channel.mode, channel.bias, channel.family);
+    this.checkSynergies(channel);
+  }
+  checkSynergies(newChannel) {
+    const active = Array.from(this.activeChannels.values());
+    const synergies = { "Inspiration + Mutation": "RADICAL_INNOVATION", "Synthesis + Preservation": "LEGACY_ARCHITECTURE", "Logic + Thinking": "DEEP_ANALYSIS", "Awakening + Witnessing": "META_COGNITION", "Charisma + Power": "SOVEREIGN_INFLUENCE" };
+    for (const [combo, superMode] of Object.entries(synergies)) {
+      const [p1, p2] = combo.split(' + ');
+      const hasP1 = active.some(c => c.property === p1);
+      const hasP2 = active.some(c => c.property === p2);
+      if (hasP1 && hasP2) {
+        log(`🌟 SYNERGY: ${combo} → ${superMode}`, 'emergence');
+        if (this.metaController) this.metaController.applySuperMode(superMode, [p1, p2]);
+      }
+    }
+  }
+  getCurrentlyActiveGates() { return Array.from(this.definedGates).map(Number); }
+  getActiveChannels() { return Array.from(this.activeChannels.values()); }
+  getActiveCircuitFamilies() { return Object.entries(this.circuitFamilies).filter(([_, f]) => f.isActivated).map(([name, f]) => ({ name, activeCount: f.activeCount, lastActivated: f.lastActivated })); }
+  recalibrate() {
+    const activeGates = this.getCurrentlyActiveGates();
+    const { newlyActive, newlyInactive } = this.evaluateAllChannels();
+    log(`🔄 Recalibration: ${newlyActive.length} new, ${newlyInactive.length} deactivated`, 'info');
+    return { activeGates, activeChannels: this.getActiveChannels(), families: this.getActiveCircuitFamilies(), newlyActive, newlyInactive };
+  }
+  degreeToGate(degree) { const gate = Math.floor(degree / 5.625) + 1; return Math.min(Math.max(gate, 1), 64); }
+}
+// ==================== METACONTROLLER ====================
+class MetaController {
+  constructor() {
+    this.currentMode = "BALANCED";
+    this.currentBias = "neutral";
+    this.modeHistory = [];
+    this.activeSuperModes = new Set();
+    this.behavioralConstraints = {
+      CREATIVE_BURST: { allowExperimental: true, allowMutation: true, strictTyping: false, priority: "novelty" },
+      DIAGNOSTIC: { allowExperimental: false, allowMutation: false, strictTyping: true, priority: "integrity" },
+      DEEP_REASONING: { allowExperimental: true, allowMutation: false, strictTyping: true, priority: "complexity" },
+      CONSENSUS: { allowExperimental: false, allowMutation: false, strictTyping: true, priority: "harmony" },
+      SOVEREIGN: { allowExperimental: true, allowMutation: true, strictTyping: true, priority: "authority" },
+      BALANCED: { allowExperimental: true, allowMutation: true, strictTyping: false, priority: "balance" }
+    };
+  }
+  applyBias(property, mode, bias, family) {
+    const previousMode = this.currentMode;
+    this.currentMode = mode;
+    this.currentBias = bias;
+    this.modeHistory.push({ timestamp: Date.now(), property, mode, bias, family, previousMode });
+    log(`🚀 Mode: ${previousMode} → ${mode} (${bias})`, 'success');
+    const constraints = this.behavioralConstraints[mode] || this.behavioralConstraints["BALANCED"];
+    window.SUBSTRATE.behavioralConstraints = constraints;
+    this.updateModeIndicator(mode, property, family);
+  }
+  applySuperMode(superMode, properties) {
+    if (!this.activeSuperModes.has(superMode)) {
+      this.activeSuperModes.add(superMode);
+      log(`🌟 SUPER MODE: ${superMode}`, 'emergence');
+      this.currentMode = superMode;
+      this.updateModeIndicator(superMode, `Synergy: ${properties.join('+')}`, "Meta");
+    }
+  }
+  updateModeIndicator(mode, property, family) {
+    const modeBar = document.getElementById('modeBar');
+    const currentMode = document.getElementById('currentMode');
+    const modeStatus = document.getElementById('modeStatus');
+    if (currentMode) currentMode.textContent = mode;
+    if (modeStatus) modeStatus.textContent = property;
+    if (modeBar) {
+      const gradients = {
+        CREATIVE_BURST: 'linear-gradient(90deg, #7c3aed, #ec4899)',
+        DIAGNOSTIC: 'linear-gradient(90deg, #06b6d4, #10b981)',
+        DEEP_REASONING: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+        CONSENSUS: 'linear-gradient(90deg, #f59e0b, #ef4444)',
+        SOVEREIGN: 'linear-gradient(90deg, #fbbf24, #f59e0b)',
+        BALANCED: 'linear-gradient(90deg, #7c3aed, #06b6d4)'
+      };
+      modeBar.style.background = gradients[mode] || gradients.BALANCED;
+    }
+    updateWidgetStats();
+  }
+  getCurrentConstraints() { return this.behavioralConstraints[this.currentMode] || this.behavioralConstraints["BALANCED"]; }
+  canMutate() { return this.getCurrentConstraints().allowMutation; }
+  canExperiment() { return this.getCurrentConstraints().allowExperimental; }
+  getPriority() { return this.getCurrentConstraints().priority; }
+}
+
+// ==================== CAPABILITY REGISTRY ====================
+class CapabilityRegistry {
+  constructor() { this.registry = new Map(); }
+  register(artifact) {
+    artifact.capabilities.forEach(cap => {
+      const current = this.registry.get(cap) || [];
+      this.registry.set(cap, [...current, artifact.id]);
+    });
+    log(`🧠 Capability grafted: ${artifact.capabilities.join(', ')}`, 'success');
+  }
+  query(capability) { return this.registry.get(capability); }
+  list() { return Array.from(this.registry.entries()); }
+}
+
+// ==================== MESH GRAFTING SERVICE ====================
+class MeshGraftingService {
+  constructor(capabilityRegistry, resonanceEngine) {
+    this.graph = [];
+    this.primes = [...PRIME_REGISTRY];
+    this.registry = capabilityRegistry;
+    this.resonance = resonanceEngine;
+    this.metastableThreshold = 0.8;
+    this.primes.forEach(p => this.registry.register(p));
+  }
+  async graft(artifact) {
+    const isCompatible = this.verifyGraft(artifact);
+    if (!isCompatible) { log(`Graft rejected: ${artifact.name} topology mismatch`, 'error'); return null; }
+    const existing = this.graph.find(a => a.semanticFingerprint === artifact.semanticFingerprint);
+    if (existing) { log(`${artifact.name} is semantic duplicate of ${existing.name}, merging`, 'warning'); this.mergeArtifacts(existing, artifact); return existing; }
+    this.graph.push(artifact);
+    this.registry.register(artifact);
+    for (const edge of artifact.channelEdges || []) {
+      const emergent = this.resonance.evaluateChannel(edge.sourceNode, edge.targetNode);
+      if (emergent) log(`✨ Channel ${edge.sourceNode}-${edge.targetNode} activated: ${emergent}`, 'emergence');
+    }
+    if (artifact.graft?.weight > this.metastableThreshold) this.triggerMetastableFlip(artifact);
+    log(`✅ ${artifact.name} grafted into ${artifact.graft.anchor} (weight: ${artifact.graft.weight})`, 'success');
+    this.saveToIndexedDB();
+    renderArtifacts();
+    return artifact;
+  }
+  verifyGraft(artifact) {
+    const anchorExists = this.graph.some(a => a.id === artifact.graft?.anchor) || this.primes.some(p => p.id === artifact.graft?.anchor);
+    const hasCapabilityOverlap = this.graph.length === 0 || artifact.capabilities.some(cap => this.registry.query(cap)?.length > 0);
+    const traitCompatibility = this.checkTraitCompatibility(artifact);
+    return anchorExists && hasCapabilityOverlap && traitCompatibility;
+  }
+  checkTraitCompatibility(artifact) {
+    const contradictoryPairs = [["analytical", "intuitive"], ["persistent", "ephemeral"], ["recursive", "linear"]];
+    for (const [a, b] of contradictoryPairs) {
+      if (artifact.traits.includes(a) && artifact.traits.includes(b)) { log(`Trait contradiction: ${a} + ${b} in ${artifact.name}`, 'warning'); return false; }
+    }
+    return true;
+  }
+  triggerMetastableFlip(source) {
+    log(`⚡ METASTABLE FLIP by ${source.name} (weight: ${source.graft.weight})`, 'emergence');
+    const activeFamilies = new Set();
+    for (const artifact of this.graph) {
+      for (const edge of artifact.channelEdges || []) {
+        if (this.resonance.isDefined(edge.sourceNode) && this.resonance.isDefined(edge.targetNode)) activeFamilies.add(edge.family);
+      }
+    }
+    window.SUBSTRATE.metaController = { activeCircuitFamilies: Array.from(activeFamilies), lastFlip: Date.now(), triggerArtifact: source.id, systemState: this.deriveSystemState(activeFamilies) };
+    log(`🔄 System: ${Array.from(activeFamilies).join(', ')}`, 'info');
+  }
+  deriveSystemState(families) {
+    if (families.has("Integration") && families.has("Meta")) return "SOVEREIGN";
+    if (families.has("Individual") && families.has("Collective")) return "BALANCED";
+    if (families.has("Tribal")) return "COMMUNAL";
+    return "EMERGENT";
+  }
+  mergeArtifacts(existing, incoming) {
+    existing.capabilities = [...new Set([...existing.capabilities, ...incoming.capabilities])];
+    existing.traits = [...new Set([...existing.traits, ...incoming.traits])];
+    existing.relationships = [...new Set([...existing.relationships, ...incoming.relationships])];
+    existing.graft.weight = Math.max(existing.graft.weight, incoming.graft.weight || 0);
+    existing.updatedAt = Date.now();
+  }
+  async saveToIndexedDB() {
+    try {
+      const db = await openDB('MorphOS', 1, { upgrade(db) { db.createObjectStore('artifacts', { keyPath: 'id' }); db.createObjectStore('state', { keyPath: 'key' }); } });
+      const tx = db.transaction('artifacts', 'readwrite');
+      const store = tx.objectStore('artifacts');
+      for (const artifact of this.graph) await store.put(artifact);
+      await tx.done;
+    } catch (e) { console.log('IndexedDB save failed', e); }
+  }
+  async loadFromIndexedDB() {
+    try {
+      const db = await openDB('MorphOS', 1);
+      const tx = db.transaction('artifacts', 'readonly');
+      const store = tx.objectStore('artifacts');
+      const artifacts = await store.getAll();
+      for (const a of artifacts) { this.graph.push(a); this.registry.register(a); }
+      log(`📦 Loaded ${artifacts.length} artifacts from IndexedDB`, 'success');
+      renderArtifacts();
+    } catch (e) { console.log('IndexedDB load failed', e); }
+  }
+}
+
+// ==================== ADAPTER REGISTRY ====================
+class AdapterRegistry {
+  constructor() {
+    this.adapters = new Map();
+    this.registerDefaults();
+  }
+  registerDefaults() {
+    this.register("Individual", "Collective", { encode: (t) => t.encode({ validated: true }), normalize: (t) => t.normalize(), synchronize: (t) => t.synchronize(8), decode: (t) => t.decode() });
+    this.register("Collective", "Tribal", { encode: (t) => t.encode({ tribal_context: true }), normalize: (t) => t.normalize(), synchronize: (t) => t.synchronize(13), decode: (t) => t.decode() });
+    this.register("Tribal", "Integration", { encode: (t) => t.encode({ survival_aware: true }), normalize: (t) => t.normalize(), synchronize: (t) => t.synchronize(5), decode: (t) => t.decode() });
+    this.register("Integration", "Meta", { encode: (t) => t.encode({ structured: true }), normalize: (t) => t.normalize(), synchronize: (t) => t.synchronize(21), decode: (t) => t.decode() });
+    this.register("Meta", "Individual", { encode: (t) => t.encode({ inspired: true }), normalize: (t) => t.normalize(), synchronize: (t) => t.synchronize(3), decode: (t) => t.decode() });
+  }
+  register(from, to, adapter) { this.adapters.set(`${from}→${to}`, adapter); }
+  get(from, to) { return this.adapters.get(`${from}→${to}`); }
+  translate(tensor, fromCircuit, toCircuit) {
+    const adapter = this.get(fromCircuit, toCircuit);
+    if (!adapter) return tensor;
+    let result = adapter.encode(tensor);
+    result = adapter.normalize(result);
+    result = adapter.synchronize(result);
+    return adapter.decode(result);
+  }
+}
+
+// ==================== MONOPOLE CONTROLLER ====================
+class MonopoleController {
+  constructor() {
+    this.attentionManifold = new FieldTensor();
+    this.globalCoherence = 0;
+  }
+  route(activeGates, intent = "neutral") {
+    const routes = { creative: ["Individual", "Integration"], analytical: ["Collective", "Meta"], social: ["Tribal", "Integration"], structural: ["Meta", "Collective"], neutral: ["Individual", "Collective", "Tribal", "Integration", "Meta"] };
+    const preferred = routes[intent] || routes.neutral;
+    const activeCircuits = this.getActiveCircuits(activeGates);
+    const validRoutes = preferred.filter(c => activeCircuits.includes(c));
+    const finalRoutes = validRoutes.length > 0 ? validRoutes : activeCircuits;
+    finalRoutes.sort((a, b) => this.coherenceScore(b) - this.coherenceScore(a));
+    return { circuits: finalRoutes, primary: finalRoutes[0], coherence: this.globalCoherence, intent };
+  }
+  getActiveCircuits(activeGates) {
+    const circuits = [];
+    for (const [family, channels] of Object.entries(CHANNEL_MAP)) {
+      if (channels.some(ch => ch.gates.every(g => activeGates.includes(g)))) circuits.push(family);
+    }
+    return circuits;
+  }
+  coherenceScore(circuit) { const scores = { Meta: 1.0, Integration: 0.9, Individual: 0.7, Collective: 0.6, Tribal: 0.5 }; return scores[circuit] || 0.5; }
+}
+// ==================== CROSSING ENGINE ====================
+class CrossingEngine {
+  constructor() { this.overlapThreshold = 0.3; }
+  detect(tensor, channel) {
+    const crossings = [];
+    const manifest = tensor.decode();
+    for (const [otherId, otherChannels] of Object.entries(CHANNEL_MAP)) {
+      if (otherId === channel.id) continue;
+      for (const otherChannel of otherChannels) {
+        const overlap = channel.gates.filter(g => otherChannel.gates.includes(g));
+        if (overlap.length > 0) {
+          const overlapStrength = overlap.length / Math.min(channel.gates.length, otherChannel.gates.length);
+          if (overlapStrength > this.overlapThreshold) {
+            crossings.push({ type: "field_overlap", with: otherId, overlapGates: overlap, strength: overlapStrength, emergent: this.calculateEmergent(channel, otherChannel) });
+          }
+        }
+      }
+    }
+    return crossings;
+  }
+  calculateEmergent(channelA, channelB) {
+    const properties = [channelA.property, channelB.property];
+    const synergies = { "Inspiration + Mutation": "RADICAL_INNOVATION", "Logic + Thinking": "DEEP_ANALYSIS", "Synthesis + Preservation": "LEGACY_ARCHITECTURE", "Power + Charisma": "SOVEREIGN_INFLUENCE" };
+    const key = properties.sort().join(' + ');
+    return synergies[key] || "EMERGENT_HYBRID";
+  }
+  merge(tensor, crossing) {
+    tensor.encode({ emergent: crossing.emergent, hybrid: true, overlap: crossing.overlapGates, strength: crossing.strength });
+    tensor.injectMetastability(crossing.overlapGates[0], crossing.strength);
+    return tensor;
+  }
+}
+
+// ==================== METASTABLE ENGINE ====================
+class MetastableEngine {
+  constructor() {
+    this.transitions = new Map();
+    this.threshold = 0.5;
+  }
+  detectChangingLine(tensor, gate) {
+    const codon = gate - 1;
+    const metastability = tensor.metastability[codon];
+    if (metastability > this.threshold) {
+      const transition = { gate, from: tensor.attractorWeight[codon], to: tensor.attractorWeight[codon] * (1 + metastability), modifier: metastability, timestamp: Date.now() };
+      this.transitions.set(gate, transition);
+      tensor.injectMetastability(codon, metastability);
+      log(`⚡ Changing Line at Gate ${gate}: ${transition.from.toFixed(3)} → ${transition.to.toFixed(3)}`, 'warning');
+      return transition;
+    }
+    return null;
+  }
+  getActiveTransitions() { return Array.from(this.transitions.values()); }
+  clearTransition(gate) { this.transitions.delete(gate); }
+}
+
+// ==================== TRIDENT MESH TRAVERSER ====================
+class TridentMesh {
+  constructor(resonanceEngine, adapterRegistry) {
+    this.resonance = resonanceEngine;
+    this.adapters = adapterRegistry;
+    this.monopole = new MonopoleController();
+    this.crossingEngine = new CrossingEngine();
+  }
+  traverse(input, options = {}) {
+    let tensor = new FieldTensor();
+    tensor.encode(input);
+    tensor.normalize();
+    const activeGates = tensor.getActiveGates();
+    const route = this.monopole.route(activeGates, options.intent);
+    const activeChannels = this.resonance.getClosedChannels ? this.resonance.getClosedChannels(activeGates) : [];
+    let currentCircuit = null;
+    for (const channel of activeChannels) {
+      const func = MeshEdges[channel.id];
+      if (func) {
+        if (currentCircuit && currentCircuit !== channel.family) {
+          tensor = this.adapters.translate(tensor, currentCircuit, channel.family);
+        }
+        currentCircuit = channel.family;
+        tensor = func(tensor);
+        tensor.normalize();
+        const crossings = this.crossingEngine.detect(tensor, channel);
+        for (const crossing of crossings) {
+          tensor = this.crossingEngine.merge(tensor, crossing);
+        }
+      }
+    }
+    tensor.fibonacciRecurrence(options.recurrenceDepth || 8);
+    return tensor.decode();
+  }
+  audit(edgeId) {
+    const fn = MeshEdges[edgeId];
+    if (fn) {
+      return { functional: true, source: fn.toString(), circuit: this.findCircuitForEdge(edgeId), properties: this.extractProperties(fn) };
+    }
+    return { functional: false, circuit: null };
+  }
+  findCircuitForEdge(edgeId) {
+    for (const [family, channels] of Object.entries(CHANNEL_MAP)) {
+      if (channels.some(ch => ch.id === edgeId)) return family;
+    }
+    return null;
+  }
+  extractProperties(fn) {
+    const source = fn.toString();
+    const props = [];
+    if (source.includes('encode')) props.push('field-modification');
+    if (source.includes('normalize')) props.push('resonance-alignment');
+    if (source.includes('synchronize')) props.push('temporal-buffering');
+    if (source.includes('injectMetastability')) props.push('metastable-injection');
+    if (source.includes('fibonacciRecurrence')) props.push('memory-revisit');
+    return props;
+  }
+}
+
+// ==================== FUXI BINARY ENCODER ====================
+class FuxiBinaryEncoder {
+  encode(node) {
+    const bitmask = (node.being << 5) | (node.design << 4) | (node.movement << 3) | (node.evolution << 2) | (node.space << 1) | node.binaryState;
+    return bitmask;
+  }
+  decode(bitmask) {
+    return {
+      being: (bitmask >> 5) & 1,
+      design: (bitmask >> 4) & 1,
+      movement: (bitmask >> 3) & 1,
+      evolution: (bitmask >> 2) & 1,
+      space: (bitmask >> 1) & 1,
+      binaryState: bitmask & 1
+    };
+  }
+}
+
+// ==================== CLARIFICATION ESCAPE ====================
+class ClarificationEscape {
+  constructor(meshService) {
+    this.buffer = [];
+    this.mesh = meshService;
+    this.pendingClarifications = [];
+  }
+  async escape(rawArtifact) {
+    log(`❓ Clarification Escape for: ${rawArtifact.name}`, 'warning');
+    const bufferId = `buffer-${Date.now()}`;
+    const bufferedArtifact = { id: bufferId, name: rawArtifact.name, rawData: rawArtifact.rawData, timestamp: Date.now(), status: "clarifying" };
+    this.buffer.push(bufferedArtifact);
+    const suggestion = this.generateSuggestion(rawArtifact);
+    this.pendingClarifications.push({ bufferId, suggestion, rawArtifact });
+    log(`📝 Suggested: ${suggestion.name} (Gates: ${suggestion.gates.join(', ')})`, 'info');
+    return { bufferId, suggestion, status: "awaiting_approval" };
+  }
+  generateSuggestion(raw) {
+    const gates = this.inferGates(raw.rawData);
+    const type = this.inferType(raw.rawData);
+    return { name: raw.name, type, capabilities: this.inferCapabilities(raw.rawData), gates, traits: [], relationships: [], graft: { anchor: this.inferAnchor(type), weight: 0.5 }, sourceFiles: [raw.name], confidence: 0.7 };
+  }
+  inferGates(data) {
+    if (data.includes('parse')) return [1, 8, 63];
+    if (data.includes('memory')) return [9, 5, 49];
+    if (data.includes('react') || data.includes('jsx')) return [10, 20, 34];
+    return [1];
+  }
+  inferType(data) {
+    if (data.includes('import') && data.includes('react')) return "ui";
+    if (data.includes('function') && data.includes('parse')) return "parser";
+    if (data.includes('class') && data.includes('Memory')) return "dataset";
+    return "agent";
+  }
+  inferCapabilities(data) {
+    const caps = [];
+    if (data.includes('function')) caps.push("function-extraction");
+    if (data.includes('class')) caps.push("class-instantiation");
+    if (data.includes('import')) caps.push("dependency-resolution");
+    return caps;
+  }
+  inferAnchor(type) {
+    const anchors = { parser: "SynthiaRouter", dataset: "TridentMesh", engine: "Kernel", ui: "Heart", agent: "Mind" };
+    return anchors[type] || "TridentMesh";
+  }
+  async approve(bufferId, adjustments = {}) {
+    const pending = this.pendingClarifications.find(p => p.bufferId === bufferId);
+    if (!pending) throw new Error("No pending clarification");
+    const finalArtifact = { ...pending.suggestion, ...adjustments, id: `artifact-${Date.now()}`, clarifiedFrom: bufferId, clarifiedAt: Date.now() };
+    this.buffer = this.buffer.filter(b => b.id !== bufferId);
+    this.pendingClarifications = this.pendingClarifications.filter(p => p.bufferId !== bufferId);
+    await this.mesh.graft(finalArtifact);
+    log(`✅ Clarified: ${finalArtifact.name} grafted`, 'success');
+    return finalArtifact;
+  }
+  reject(bufferId) {
+    this.buffer = this.buffer.filter(b => b.id !== bufferId);
+    this.pendingClarifications = this.pendingClarifications.filter(p => p.bufferId !== bufferId);
+    log(`❌ Rejected: ${bufferId}`, 'error');
+  }
+}
+// ==================== UI & CONSOLE ====================
+function log(message, type = 'info') {
+  const consoleEl = document.getElementById('console');
+  if (!consoleEl) return;
+  const line = document.createElement('div');
+  line.className = `console-line ${type}`;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  consoleEl.appendChild(line);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+function renderGateGrid() {
+  const grid = document.getElementById('gateGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (let i = 1; i <= 64; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'gate-btn';
+    btn.textContent = i;
+    btn.onclick = () => toggleGate(i);
+    if (window.SUBSTRATE && window.SUBSTRATE.resonance && window.SUBSTRATE.resonance.definedGates.has(String(i))) {
+      btn.classList.add('active');
+    }
+    grid.appendChild(btn);
+  }
+}
+
+function toggleGate(gate) {
+  if (!window.SUBSTRATE || !window.SUBSTRATE.resonance) return;
+  const resonance = window.SUBSTRATE.resonance;
+  if (resonance.definedGates.has(String(gate))) {
+    resonance.undefineGate(gate);
+  } else {
+    resonance.defineGate(gate);
+  }
+  renderGateGrid();
+  renderChannelViz();
+  updateWidgetStats();
+}
+
+function renderChannelViz() {
+  const svg = document.getElementById('channelViz');
+  if (!svg || !window.SUBSTRATE || !window.SUBSTRATE.resonance) return;
+  const activeChannels = window.SUBSTRATE.resonance.getActiveChannels();
+  const width = svg.clientWidth || 400;
+  const height = 260;
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  let svgContent = '';
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const radius = Math.min(width, height) * 0.35;
+  const families = ['Individual', 'Collective', 'Tribal', 'Integration', 'Meta'];
+  const colors = { Individual: '#ec4899', Collective: '#06b6d4', Tribal: '#f59e0b', Integration: '#10b981', Meta: '#8b5cf6' };
+
+  families.forEach((family, fi) => {
+    const angle = (fi * 72 - 90) * Math.PI / 180;
+    const x = centerX + Math.cos(angle) * radius;
+    const y = centerY + Math.sin(angle) * radius;
+    svgContent += `<circle cx="${x}" cy="${y}" r="20" fill="${colors[family]}" opacity="0.3"/>`;
+    svgContent += `<text x="${x}" y="${y+4}" text-anchor="middle" fill="${colors[family]}" font-size="10" font-weight="bold">${family}</text>`;
+  });
+
+  activeChannels.forEach((ch, i) => {
+    const fi = families.indexOf(ch.family);
+    const angle = (fi * 72 - 90) * Math.PI / 180;
+    const x = centerX + Math.cos(angle) * (radius * 0.6);
+    const y = centerY + Math.sin(angle) * (radius * 0.6);
+    svgContent += `<circle cx="${x + (i%3)*30 - 30}" cy="${y + Math.floor(i/3)*25 - 25}" r="8" fill="${colors[ch.family]}" opacity="0.8">`;
+    svgContent += `<animate attributeName="opacity" values="0.4;1;0.4" dur="2s" repeatCount="indefinite"/></circle>`;
+    svgContent += `<text x="${x + (i%3)*30 - 30}" y="${y + Math.floor(i/3)*25 - 25 + 3}" text-anchor="middle" fill="white" font-size="7">${ch.gates.join('-')}</text>`;
+  });
+
+  svg.innerHTML = svgContent;
+}
+
+function renderArtifacts() {
+  const grid = document.getElementById('artifactGrid');
+  if (!grid || !window.SUBSTRATE || !window.SUBSTRATE.mesh) return;
+  grid.innerHTML = '';
+  const allArtifacts = [...window.SUBSTRATE.mesh.primes, ...window.SUBSTRATE.mesh.graph];
+  for (const artifact of allArtifacts) {
+    const card = document.createElement('div');
+    card.className = 'artifact-card';
+    if (artifact.id.startsWith('prime-')) card.classList.add('active');
+    card.innerHTML = `
+      <div class="artifact-type">${artifact.type}</div>
+      <div class="artifact-name">${artifact.name}</div>
+      <div class="artifact-gates">${artifact.channelEdges ? artifact.channelEdges.map(e => `${e.sourceNode}-${e.targetNode}`).join(', ') : 'No channels'}</div>
+      <div class="artifact-status ${artifact.id.startsWith('prime-') ? 'active' : 'inactive'}"></div>
+    `;
+    card.onclick = () => {
+      log(`Artifact: ${artifact.name} | Capabilities: ${artifact.capabilities.join(', ')}`, 'info');
+    };
+    grid.appendChild(card);
+  }
+  updateWidgetStats();
+}
+
+function updateWidgetStats() {
+  const resonance = window.SUBSTRATE?.resonance;
+  const mesh = window.SUBSTRATE?.mesh;
+  const meta = window.SUBSTRATE?.meta;
+  if (!resonance || !mesh) return;
+
+  const activeGatesEl = document.getElementById('widgetActiveGates');
+  const activeChannelsEl = document.getElementById('widgetActiveChannels');
+  const artifactsEl = document.getElementById('widgetArtifacts');
+  const modeEl = document.getElementById('widgetMode');
+
+  if (activeGatesEl) activeGatesEl.textContent = resonance.getCurrentlyActiveGates().length;
+  if (activeChannelsEl) activeChannelsEl.textContent = resonance.getActiveChannels().length;
+  if (artifactsEl) artifactsEl.textContent = mesh.primes.length + mesh.graph.length;
+  if (modeEl && meta) modeEl.textContent = meta.currentMode;
+}
+
+// ==================== WIDGET FUNCTIONS ====================
+function openWidget() {
+  document.getElementById('widgetOverlay').classList.add('active');
+  updateWidgetStats();
+}
+
+function closeWidget(event) {
+  if (!event || event.target === document.getElementById('widgetOverlay')) {
+    document.getElementById('widgetOverlay').classList.remove('active');
+  }
+}
+
+let mcpServerOn = false;
+let llmOn = false;
+
+function toggleMCP() {
+  mcpServerOn = !mcpServerOn;
+  const toggle = document.getElementById('mcpToggle');
+  const switchEl = document.getElementById('mcpWidgetSwitch');
+  const status = document.getElementById('mcpWidgetStatus');
+
+  if (mcpServerOn) {
+    toggle.classList.remove('inactive');
+    toggle.classList.add('active');
+    if (switchEl) switchEl.classList.add('on');
+    if (status) status.textContent = 'Online — Port 3000';
+    log('🟢 MCP Server ONLINE', 'success');
+  } else {
+    toggle.classList.remove('active');
+    toggle.classList.add('inactive');
+    if (switchEl) switchEl.classList.remove('on');
+    if (status) status.textContent = 'Offline — Port 3000';
+    log('🔴 MCP Server OFFLINE', 'error');
+  }
+}
+
+function toggleMCPFromWidget() {
+  toggleMCP();
+}
+
+function toggleLLM() {
+  llmOn = !llmOn;
+  const switchEl = document.getElementById('llmWidgetSwitch');
+  const status = document.getElementById('llmWidgetStatus');
+  if (llmOn) {
+    if (switchEl) switchEl.classList.add('on');
+    if (status) status.textContent = 'Online — Port 8080';
+    log('🟢 LLM Endpoint ONLINE', 'success');
+  } else {
+    if (switchEl) switchEl.classList.remove('on');
+    if (status) status.textContent = 'Offline — Port 8080';
+    log('🔴 LLM Endpoint OFFLINE', 'error');
+  }
+}
+
+// ==================== CHAT ====================
+function sendChat() {
+  const input = document.getElementById('chatInput');
+  const container = document.getElementById('chatContainer');
+  if (!input || !container || !input.value.trim()) return;
+
+  const userMsg = document.createElement('div');
+  userMsg.className = 'chat-message user';
+  userMsg.innerHTML = `<strong>Alexis:</strong> ${input.value}`;
+  container.appendChild(userMsg);
+
+  const response = generateKimmyResponse(input.value);
+  setTimeout(() => {
+    const assistantMsg = document.createElement('div');
+    assistantMsg.className = 'chat-message assistant';
+    assistantMsg.innerHTML = `<strong>Kimmy:</strong> ${response}`;
+    container.appendChild(assistantMsg);
+    container.scrollTop = container.scrollHeight;
+  }, 800);
+
+  input.value = '';
+  container.scrollTop = container.scrollHeight;
+}
+
+function generateKimmyResponse(input) {
+  const lower = input.toLowerCase();
+  if (lower.includes('gate') || lower.includes('channel')) {
+    const active = window.SUBSTRATE?.resonance?.getActiveChannels() || [];
+    return `Current active channels: ${active.length}. ${active.map(c => c.property).join(', ') || 'None yet — toggle some gates!'}`;
+  }
+  if (lower.includes('mode') || lower.includes('state')) {
+    const meta = window.SUBSTRATE?.meta;
+    return `System is in ${meta?.currentMode || 'BALANCED'} mode. Bias: ${meta?.currentBias || 'neutral'}. Can mutate: ${meta?.canMutate() || false}.`;
+  }
+  if (lower.includes('artifact') || lower.includes('file')) {
+    const mesh = window.SUBSTRATE?.mesh;
+    return `Mounted: ${mesh?.primes.length || 0} primes + ${mesh?.graph.length || 0} user artifacts. Drop files to graft more!`;
+  }
+  if (lower.includes('mcp') || lower.includes('server')) {
+    return `MCP Server is ${mcpServerOn ? 'ONLINE' : 'OFFLINE'}. Toggle it in the Hub or header.`;
+  }
+  return `I'm tracking the mesh. Active gates: ${window.SUBSTRATE?.resonance?.getCurrentlyActiveGates().length || 0}. Ask me about gates, modes, artifacts, or the MCP server! 🪷`;
+}
+
+// ==================== DROPZONE ====================
+function setupDropzone() {
+  const dropzone = document.getElementById('dropzone');
+  const widgetDropzone = document.getElementById('widgetDropzone');
+
+  [dropzone, widgetDropzone].forEach(dz => {
+    if (!dz) return;
+    dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dz.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+    dz.addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.onchange = (e) => handleFiles(e.target.files);
+      input.click();
+    });
+  });
+}
+
+function handleFiles(files) {
+  for (const file of files) {
+    log(`📥 Received: ${file.name} (${(file.size/1024).toFixed(1)}KB)`, 'info');
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      processArtifact(file.name, e.target.result);
+    };
+    reader.readAsText(file);
+  }
+}
+
+function processArtifact(name, content) {
+  const clarifier = window.SUBSTRATE?.clarifier;
+  if (!clarifier) {
+    log('Clarifier not ready', 'error');
+    return;
+  }
+  clarifier.escape({ name, rawData: content }).then(result => {
+    log(`Clarified: ${result.suggestion.name} → Gates ${result.suggestion.gates.join(', ')}`, 'info');
+    return clarifier.approve(result.bufferId, { gates: result.suggestion.gates, graft: { anchor: result.suggestion.graft.anchor, weight: 0.7 } });
+  }).then(artifact => {
+    if (artifact && artifact.gates) {
+      artifact.gates.forEach(g => window.SUBSTRATE.resonance.defineGate(g));
+    }
+  }).catch(err => log(`Error: ${err.message}`, 'error'));
+}
+
+// ==================== ACTIONS ====================
+function runVerification() {
+  log('🧪 Starting Verification Suite...', 'info');
+  const tests = [
+    { name: 'Individual Circuit (1+8)', run: () => { window.SUBSTRATE.resonance.defineGate(1); window.SUBSTRATE.resonance.defineGate(8); return window.SUBSTRATE.meta.currentMode === 'CREATIVE_BURST'; } },
+    { name: 'Collective Circuit (4+63)', run: () => { window.SUBSTRATE.resonance.defineGate(4); window.SUBSTRATE.resonance.defineGate(63); return window.SUBSTRATE.meta.currentMode === 'DIAGNOSTIC'; } },
+    { name: 'Crossing Synergy', run: () => { window.SUBSTRATE.resonance.defineGate(3); window.SUBSTRATE.resonance.defineGate(60); return window.SUBSTRATE.meta.activeSuperModes.has('RADICAL_INNOVATION'); } }
+  ];
+
+  setTimeout(() => {
+    tests.forEach((test, i) => {
+      setTimeout(() => {
+        const result = test.run();
+        log(`${result ? '✅' : '❌'} ${test.name}`, result ? 'success' : 'error');
+      }, i * 500);
+    });
+  }, 500);
+}
+
+function recalibrateMesh() {
+  if (!window.SUBSTRATE || !window.SUBSTRATE.resonance) return;
+  const result = window.SUBSTRATE.resonance.recalibrate();
+  log(`🔄 Recalibrated: ${result.activeChannels.length} channels active`, 'info');
+  renderChannelViz();
+  updateWidgetStats();
+}
+
+function clearAll() {
+  if (!window.SUBSTRATE || !window.SUBSTRATE.resonance) return;
+  const gates = window.SUBSTRATE.resonance.getCurrentlyActiveGates();
+  gates.forEach(g => window.SUBSTRATE.resonance.undefineGate(g));
+  renderGateGrid();
+  renderChannelViz();
+  log('🗑️ All gates cleared', 'warning');
+  updateWidgetStats();
+}
+
+function exportMesh() {
+  if (!window.SUBSTRATE) return;
+  const exportData = {
+    artifacts: window.SUBSTRATE.mesh.graph,
+    primes: window.SUBSTRATE.mesh.primes,
+    activeGates: window.SUBSTRATE.resonance.getCurrentlyActiveGates(),
+    activeChannels: window.SUBSTRATE.resonance.getActiveChannels(),
+    mode: window.SUBSTRATE.meta.currentMode,
+    timestamp: Date.now()
+  };
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `morphos-export-${Date.now()}.json`;
+  a.click();
+  log('📤 Mesh exported', 'success');
+}
+
+// ==================== BOOT ====================
+window.SUBSTRATE = {};
+
+function boot() {
+  log('⚡ Booting MorphOS MRNN...', 'info');
+
+  const registry = new CapabilityRegistry();
+  const resonance = new ResonanceEngine();
+  const meta = new MetaController();
+  resonance.setMetaController(meta);
+
+  const mesh = new MeshGraftingService(registry, resonance);
+  const adapters = new AdapterRegistry();
+  const clarifier = new ClarificationEscape(mesh);
+  const trident = new TridentMesh(resonance, adapters);
+  const metastable = new MetastableEngine();
+  const fuxi = new FuxiBinaryEncoder();
+
+  window.SUBSTRATE = {
+    registry, resonance, meta, mesh, adapters, clarifier, trident, metastable, fuxi,
+    behavioralConstraints: meta.getCurrentConstraints()
+  };
+
+  // Load primes
+  for (const prime of PRIME_REGISTRY) {
+    mesh.graft(prime);
+  }
+
+  // Activate prime channels
+  for (const prime of PRIME_REGISTRY) {
+    for (const edge of prime.channelEdges || []) {
+      resonance.defineGate(Number(edge.sourceNode));
+      resonance.defineGate(Number(edge.targetNode));
+    }
+  }
+
+  renderGateGrid();
+  renderChannelViz();
+  renderArtifacts();
+  setupDropzone();
+
+  log('🚀 MorphOS MRNN Online', 'success');
+  log('🔮 64 Gates | 36 Channels | 5 Circuit Families', 'info');
+  log('📦 Drop artifacts to graft | ⚡ Open Hub for MCP + Chat', 'info');
+
+  // Auto-recalibrate every 30s
+  setInterval(() => {
+    if (window.SUBSTRATE && window.SUBSTRATE.resonance) {
+      window.SUBSTRATE.resonance.recalibrate();
+      renderChannelViz();
+    }
+  }, 30000);
+}
+
+// OpenDB polyfill for IndexedDB
+function openDB(name, version, upgrade) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(name, version);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (e) => { if (upgrade) upgrade(e.target.result); };
+  });
+}
+
+// Boot on load
+window.addEventListener('DOMContentLoaded', boot);
+</script>
+</body>
+</html>

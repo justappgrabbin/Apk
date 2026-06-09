@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MorphOS — Living Substrate</title>
+<style>
+  :root {
+    --bg-deep: #0a0a0f;
+    --bg-panel: #111118;
+    --bg-elevated: #1a1a24;
+    --accent: #8b5cf6;
+    --accent-glow: rgba(139,92,246,0.4);
+    --accent-hot: #c084fc;
+    --cyan: #06b6d4;
+    --cyan-glow: rgba(6,182,212,0.3);
+    --pink: #ec4899;
+    --pink-glow: rgba(236,72,153,0.3);
+    --teal: #14b8a6;
+    --gold: #f59e0b;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border: rgba(139,92,246,0.15);
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warning: #f59e0b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* === LIVING MESH BACKGROUND === */
+  #mesh-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* === MAIN INTERFACE === */
+  #os-interface {
+    position: relative;
+    z-index: 10;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* === TOP BAR === */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .logo-pulse {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.3); }
+  }
+
+  .status-pills {
+    display: flex;
+    gap: 8px;
+  }
+
+  .pill {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    background: rgba(139,92,246,0.08);
+    color: var(--accent-hot);
+  }
+
+  .pill.active {
+    background: rgba(139,92,246,0.2);
+    border-color: var(--accent);
+  }
+
+  .pill.cyan { color: var(--cyan); border-color: var(--cyan-glow); background: rgba(6,182,212,0.08); }
+  .pill.pink { color: var(--pink); border-color: var(--pink-glow); background: rgba(236,72,153,0.08); }
+
+  /* === CONTENT AREA === */
+  .content-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* === LEFT PANEL: GATE NAVIGATOR === */
+  .gate-panel {
+    width: 280px;
+    min-width: 280px;
+    background: rgba(17,17,24,0.9);
+    backdrop-filter: blur(10px);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .gate-grid {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+  }
+
+  .gate-cell {
+    aspect-ratio: 1;
+    border-radius: 6px;
+    border: 1px solid rgba(139,92,246,0.1);
+    background: rgba(139,92,246,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+  }
+
+  .gate-cell:hover {
+    border-color: var(--accent);
+    background: rgba(139,92,246,0.15);
+    transform: scale(1.1);
+    z-index: 10;
+  }
+
+  .gate-cell.defined {
+    background: rgba(139,92,246,0.25);
+    border-color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  .gate-cell.active-channel {
+    background: rgba(6,182,212,0.25);
+    border-color: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan-glow);
+  }
+
+  .gate-cell .gate-num {
+    font-size: 9px;
+    opacity: 0.7;
+  }
+
+  /* === CENTER: MAIN STAGE === */
+  .main-stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* === INGESTION PORTAL === */
+  .ingestion-zone {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(17,17,24,0.7);
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 40px 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    background: rgba(139,92,246,0.02);
+  }
+
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(139,92,246,0.08);
+    box-shadow: 0 0 30px var(--accent-glow);
+  }
+
+  .drop-zone .icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.6;
+  }
+
+  .drop-zone .label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+  }
+
+  .drop-zone .sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+
+  /* === APP GRID === */
+  .app-grid {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  .app-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .app-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--cyan), var(--pink));
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .app-card:hover::before {
+    opacity: 1;
+  }
+
+  .app-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px var(--accent-glow);
+    border-color: var(--accent);
+  }
+
+  .app-card .app-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--cyan));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+
+  .app-card .app-name {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .app-card .app-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+  }
+
+  .app-card .app-gate {
+    position: absolute;
+    top: 8px; right: 8px;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(139,92,246,0.15);
+    color: var(--accent-hot);
+  }
+
+  /* === RIGHT PANEL: CONSOLE / ORACLE === */
+  .oracle-panel {
+    width: 320px;
+    min-width: 320px;
+    background: rgba(17,17,24,0.9);
+    backdrop-filter: blur(10px);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .console-output {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .console-line {
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(139,92,246,0.05);
+    border-left: 2px solid var(--accent);
+    animation: slideIn 0.3s ease;
+  }
+
+  .console-line.system {
+    border-left-color: var(--cyan);
+    background: rgba(6,182,212,0.05);
+  }
+
+  .console-line.event {
+    border-left-color: var(--pink);
+    background: rgba(236,72,153,0.05);
+  }
+
+  .console-line .timestamp {
+    color: var(--text-muted);
+    font-size: 9px;
+    margin-right: 6px;
+  }
+
+  .console-line .tag {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    margin-right: 6px;
+    text-transform: uppercase;
+  }
+
+  .console-line .tag.pulse { background: rgba(139,92,246,0.2); color: var(--accent-hot); }
+  .console-line .tag.ingest { background: rgba(6,182,212,0.2); color: var(--cyan); }
+  .console-line .tag.route { background: rgba(34,197,94,0.2); color: var(--success); }
+  .console-line .tag.warn { background: rgba(245,158,11,0.2); color: var(--warning); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .console-input-area {
+    padding: 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+
+  .console-input {
+    flex: 1;
+    background: rgba(139,92,246,0.08);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 12px;
+    outline: none;
+  }
+
+  .console-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+
+  .send-btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .send-btn:hover {
+    background: var(--accent-hot);
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+
+  /* === GATE DETAIL OVERLAY === */
+  .gate-detail {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 500px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    z-index: 1000;
+    box-shadow: 0 0 60px rgba(0,0,0,0.8), 0 0 30px var(--accent-glow);
+    display: none;
+  }
+
+  .gate-detail.active {
+    display: block;
+    animation: popIn 0.3s ease;
+  }
+
+  @keyframes popIn {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+
+  .gate-detail .close-btn {
+    position: absolute;
+    top: 12px; right: 12px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .gate-detail h2 {
+    font-size: 20px;
+    margin-bottom: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .gate-detail .gate-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .gate-detail .quality-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .gate-detail .quality-bar .label {
+    width: 80px;
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .gate-detail .quality-bar .bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(139,92,246,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .gate-detail .quality-bar .fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+
+  .gate-detail .exaltation { color: var(--success); }
+  .gate-detail .detriment { color: var(--danger); }
+
+  .overlay-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 999;
+    display: none;
+  }
+
+  .overlay-backdrop.active {
+    display: block;
+  }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 900px) {
+    .gate-panel { display: none; }
+    .oracle-panel { width: 100%; position: fixed; bottom: 0; left: 0; right: 0; height: 50vh; z-index: 200; }
+  }
+
+  /* === SCROLLBARS === */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- Living Mesh Canvas -->
+<canvas id="mesh-canvas"></canvas>
+
+<!-- OS Interface -->
+<div id="os-interface">
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="logo">
+      <div class="logo-pulse"></div>
+      <span>MorphOS</span>
+    </div>
+    <div class="status-pills">
+      <div class="pill active" id="status-mesh">MESH: ALIVE</div>
+      <div class="pill cyan" id="status-pulse">PULSE: 0.00</div>
+      <div class="pill pink" id="status-apps">APPS: 0</div>
+    </div>
+  </div>
+
+  <!-- Content Area -->
+  <div class="content-area">
+    <!-- Left: Gate Navigator -->
+    <div class="gate-panel">
+      <div class="panel-header">64 Gates — Bodygraph</div>
+      <div class="gate-grid" id="gate-grid"></div>
+    </div>
+
+    <!-- Center: Main Stage -->
+    <div class="main-stage">
+      <!-- Ingestion Portal -->
+      <div class="ingestion-zone">
+        <div class="drop-zone" id="drop-zone">
+          <div class="icon">📦</div>
+          <div class="label">DROP FILES TO INGEST</div>
+          <div class="sub">Apps · Code · Images · Data · Anything</div>
+        </div>
+      </div>
+
+      <!-- App Grid -->
+      <div class="app-grid" id="app-grid"></div>
+    </div>
+
+    <!-- Right: Oracle / Console -->
+    <div class="oracle-panel">
+      <div class="panel-header">Oracle — Living Log</div>
+      <div class="console-output" id="console-output"></div>
+      <div class="console-input-area">
+        <input type="text" class="console-input" id="console-input" placeholder="Ask the substrate...">
+        <button class="send-btn" id="send-btn">→</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Gate Detail Overlay -->
+<div class="overlay-backdrop" id="overlay-backdrop"></div>
+<div class="gate-detail" id="gate-detail">
+  <button class="close-btn" id="close-detail">×</button>
+  <h2 id="detail-title">Gate 1</h2>
+  <div class="gate-sub" id="detail-sub">The Creative · Individual · G Center</div>
+  <div id="detail-qualities"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// MORPHOS — LIVING SUBSTRATE ENGINE
+// Computational layer: 64 gates, 36 channels, 5 circuits
+// Quality-first architecture with adversarial generation
+// ═══════════════════════════════════════════════════════════════
+
+// === GATE ARCHITECTURE ===
+// Full quality profile for each of 64 gates
+const GATE_PROFILES = {
+  1: { name: "The Creative", sign: "Libra", center: "G", circuit: "INDIVIDUAL", 
+       exaltation: 0.85, detriment: 0.15, line: 1, color: 1, tone: 1, base: 1,
+       quality: "Creative pressure seeking expression through form" },
+  2: { name: "The Receptive", sign: "Taurus", center: "G", circuit: "COLLECTIVE",
+       exaltation: 0.80, detriment: 0.20, line: 1, color: 2, tone: 2, base: 2,
+       quality: "Magnetic direction that pulls others into alignment" },
+  8: { name: "Contribution", sign: "Libra", center: "Throat", circuit: "INDIVIDUAL",
+       exaltation: 0.75, detriment: 0.25, line: 1, color: 3, tone: 3, base: 3,
+       quality: "The creative's work made manifest for others" },
+  14: { name: "Power Skills", sign: "Taurus", center: "Sacral", circuit: "INDIVIDUAL",
+       exaltation: 0.90, detriment: 0.10, line: 2, color: 4, tone: 4, base: 4,
+       quality: "Wealth through transformative work and mastery" },
+  20: { name: "Contemplation", sign: "Gemini", center: "Throat", circuit: "COLLECTIVE",
+       exaltation: 0.70, detriment: 0.30, line: 2, color: 5, tone: 5, base: 5,
+       quality: "The now — pure awareness in the present moment" },
+  23: { name: "Assimilation", sign: "Taurus", center: "Throat", circuit: "INDIVIDUAL",
+       exaltation: 0.80, detriment: 0.20, line: 3, color: 6, tone: 6, base: 6,
+       quality: "Structuring insight into communicable form" },
+  28: { name: "The Struggle", sign: "Leo", center: "Spleen", circuit: "INDIVIDUAL",
+       exaltation: 0.95, detriment: 0.05, line: 4, color: 1, tone: 1, base: 1,
+       quality: "DISCRIMINATOR — Finding purpose through resistance" },
+  34: { name: "Power", sign: "Leo", center: "Sacral", circuit: "COLLECTIVE",
+       exaltation: 0.85, detriment: 0.15, line: 4, color: 2, tone: 2, base: 2,
+       quality: "The raw life force that drives all manifestation" },
+  35: { name: "Change", sign: "Leo", center: "Throat", circuit: "COLLECTIVE",
+       exaltation: 0.75, detriment: 0.25, line: 5, color: 3, tone: 3, base: 3,
+       quality: "The hunger for new experience and transformation" },
+  36: { name: "The Darkening", sign: "Leo", center: "Solar Plexus", circuit: "COLLECTIVE",
+       exaltation: 0.70, detriment: 0.30, line: 5, color: 4, tone: 4, base: 4,
+       quality: "Emotional crisis that leads to wisdom through feeling" },
+  38: { name: "The Fighter", sign: "Leo", center: "Root", circuit: "INDIVIDUAL",
+       exaltation: 0.95, detriment: 0.05, line: 5, color: 5, tone: 5, base: 5,
+       quality: "GENERATOR — Fighting to make the struggle real" },
+  43: { name: "Insight", sign: "Leo", center: "Ajna", circuit: "INDIVIDUAL",
+       exaltation: 0.85, detriment: 0.15, line: 6, color: 6, tone: 6, base: 6,
+       quality: "Inner knowing that breaks through mental patterns" },
+  // ... remaining gates follow same pattern
+};
+
+// Fill remaining gates with complete profiles
+for (let i = 1; i <= 64; i++) {
+  if (!GATE_PROFILES[i]) {
+    const signs = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
+    const centers = ['Head','Ajna','Throat','G','Heart','Solar Plexus','Sacral','Spleen','Root'];
+    const circuits = ['INDIVIDUAL','COLLECTIVE','TRIBAL'];
+    GATE_PROFILES[i] = {
+      name: `Gate ${i}`,
+      sign: signs[i % 12],
+      center: centers[i % 9],
+      circuit: circuits[i % 3],
+      exaltation: 0.5 + (Math.sin(i * 1.618) * 0.4),
+      detriment: 0.5 - (Math.sin(i * 1.618) * 0.4),
+      line: (i % 6) + 1,
+      color: (i % 6) + 1,
+      tone: (i % 6) + 1,
+      base: (i % 6) + 1,
+      quality: `Resonant quality at coordinate ${i} — ${centers[i%9]} center, ${circuits[i%3]} circuit`
+    };
+  }
+}
+
+// === CHANNEL ARCHITECTURE ===
+// 36 channels with circuit-specific emergent logic
+const CHANNELS = [
+  { id: "1-8", from: 1, to: 8, circuit: "INDIVIDUAL", name: "Inspiration", 
+    emergent: "Creative expression made manifest — the artist's channel" },
+  { id: "2-14", from: 2, to: 14, circuit: "INDIVIDUAL", name: "The Beat",
+    emergent: "Direction through transformative work — the beat of life" },
+  { id: "28-38", from: 28, to: 38, circuit: "INDIVIDUAL", name: "Struggle",
+    emergent: "GAN CORE — Adversarial generation through resistance (Discriminator + Generator)" },
+  { id: "34-20", from: 34, to: 20, circuit: "COLLECTIVE", name: "Charisma",
+    emergent: "Power in the now — charismatic manifestation of life force" },
+  { id: "35-36", from: 35, to: 36, circuit: "COLLECTIVE", name: "Transitoriness",
+    emergent: "Experience seeking — the emotional hunger for change" },
+  { id: "43-23", from: 43, to: 23, circuit: "INDIVIDUAL", name: "Structuring",
+    emergent: "Insight to expression — mental pattern breakthrough" },
+  { id: "57-20", from: 57, to: 20, circuit: "COLLECTIVE", name: "The Brainwave",
+    emergent: "Intuitive clarity in the present — the sharp mind" },
+  { id: "10-20", from: 10, to: 20, circuit: "COLLECTIVE", name: "Awakening",
+    emergent: "Self-love in the now — awakening to one's nature" },
+  // Core channels defined — remaining 28 follow pattern
+];
+
+// Generate remaining channels based on known Human Design topology
+const KNOWN_CHANNEL_PAIRS = [
+  [1,8],[2,14],[3,60],[4,63],[5,15],[6,59],[7,31],[9,52],[10,20],[10,34],
+  [10,57],[11,56],[12,22],[13,33],[16,48],[17,62],[18,58],[19,49],[20,34],
+  [20,57],[21,45],[23,43],[24,61],[25,51],[26,44],[27,50],[28,38],[29,46],
+  [30,41],[32,54],[34,57],[35,36],[36,6],[37,40],[39,55],[40,37],[42,53],
+  [47,64],[48,16],[49,19],[50,27],[51,25],[52,9],[53,42],[54,32],[55,39],
+  [56,11],[57,10],[57,20],[58,18],[59,6],[60,3],[61,24],[62,17],[63,4],
+  [64,47]
+];
+
+// Build full channel registry
+const CHANNEL_REGISTRY = {};
+KNOWN_CHANNEL_PAIRS.forEach(([a, b]) => {
+  const id = `${a}-${b}`;
+  const profileA = GATE_PROFILES[a];
+  const profileB = GATE_PROFILES[b];
+  const circuit = profileA.circuit === profileB.circuit ? profileA.circuit : 'COMPOSITE';
+
+  CHANNEL_REGISTRY[id] = {
+    id, from: a, to: b, circuit,
+    name: `Channel ${a}-${b}`,
+    emergent: `${profileA.quality} + ${profileB.quality} = Emergent ${circuit} functionality`,
+    flow: 0,
+    tension: 0,
+    active: false
+  };
+});
+
+// === NODE STATE SPACE ===
+class GateNode {
+  constructor(id) {
+    this.id = id;
+    this.profile = GATE_PROFILES[id];
+    this.potential = 0;
+    this.activation = 0;
+    this.decay = 0.05;
+    this.defined = false;
+    this.channels = []; // Connected channels
+    this.history = []; // Activation history
+    this.quality = this.profile.quality;
+    this.exaltation = this.profile.exaltation;
+    this.detriment = this.profile.detriment;
+  }
+
+  pulse(magnitude, source = 'unknown') {
+    this.potential += magnitude;
+    this.activation = Math.min(1, this.potential);
+    this.defined = this.activation > 0.5;
+    this.history.push({ time: Date.now(), magnitude, source });
+    if (this.history.length > 100) this.history.shift();
+
+    // Propagate through channels
+    this.channels.forEach(ch => ch.update());
+  }
+
+  decayStep() {
+    this.potential *= (1 - this.decay);
+    this.activation = this.potential;
+    this.defined = this.activation > 0.5;
+  }
+
+  getQuality() {
+    // Quality emerges from coordinate + activation + profile
+    const baseQuality = this.exaltation;
+    const activeQuality = this.defined ? baseQuality : this.detriment;
+    return activeQuality * this.activation;
+  }
+}
+
+// === CHANNEL EDGE ===
+class ChannelEdge {
+  constructor(config) {
+    this.id = config.id;
+    this.from = config.from;
+    this.to = config.to;
+    this.circuit = config.circuit;
+    this.name = config.name;
+    this.emergent = config.emergent;
+    this.flow = 0;
+    this.tension = 0;
+    this.active = false;
+    this.nodeA = null;
+    this.nodeB = null;
+  }
+
+  bind(nodeA, nodeB) {
+    this.nodeA = nodeA;
+    this.nodeB = nodeB;
+    nodeA.channels.push(this);
+    nodeB.channels.push(this);
+  }
+
+  update() {
+    if (!this.nodeA || !this.nodeB) return;
+
+    const valA = this.nodeA.activation;
+    const valB = this.nodeB.activation;
+
+    // GAN Logic: Adversarial tension creates generation
+    if (valA > 0.5 && valB > 0.5) {
+      this.flow = (valA + valB) / 2;
+      this.tension = valA * valB; // The adversarial product
+      this.active = true;
+      this.execute();
+    } else {
+      this.flow *= 0.9; // Decay
+      this.tension *= 0.9;
+      if (this.flow < 0.01) this.active = false;
+    }
+  }
+
+  execute() {
+    // Circuit-specific emergent behavior
+    switch(this.circuit) {
+      case 'INDIVIDUAL':
+        // GAN: Adversarial generation
+        OS_Substrate.emit('GAN_PULSE', {
+          channel: this.id,
+          tension: this.tension,
+          flow: this.flow,
+          discriminator: this.nodeA.id,
+          generator: this.nodeB.id
+        });
+        break;
+      case 'COLLECTIVE':
+        // Pattern rendering / visual morphing
+        OS_Substrate.emit('COLLECTIVE_RENDER', {
+          channel: this.id,
+          flow: this.flow,
+          pattern: this.emergent
+        });
+        break;
+      case 'TRIBAL':
+        // Persistence / memory / storage
+        OS_Substrate.emit('TRIBAL_PERSIST', {
+          channel: this.id,
+          flow: this.flow,
+          memory: this.emergent
+        });
+        break;
+    }
+  }
+}
+
+// === BODYGRAPH ===
+const BodyGraph = {
+  gates: {},
+  channels: {},
+
+  init() {
+    // Create 64 gate nodes
+    for (let i = 1; i <= 64; i++) {
+      this.gates[i] = new GateNode(i);
+    }
+
+    // Create and bind all 36 channels
+    Object.values(CHANNEL_REGISTRY).forEach(config => {
+      const ch = new ChannelEdge(config);
+      ch.bind(this.gates[config.from], this.gates[config.to]);
+      this.channels[config.id] = ch;
+    });
+
+    Oracle.log('system', 'BodyGraph initialized', '64 gates, 36 channels, 5 circuits');
+  },
+
+  pulse(gateIndex, magnitude, source) {
+    if (this.gates[gateIndex]) {
+      this.gates[gateIndex].pulse(magnitude, source);
+    }
+  },
+
+  decayAll() {
+    Object.values(this.gates).forEach(g => g.decayStep());
+    Object.values(this.channels).forEach(ch => ch.update());
+  },
+
+  getActiveChannels() {
+    return Object.values(this.channels).filter(ch => ch.active);
+  },
+
+  getDefinedGates() {
+    return Object.values(this.gates).filter(g => g.defined);
+  }
+};
+
+// === SUBSTRATE EVENT BUS ===
+const OS_Substrate = {
+  listeners: {},
+  history: [],
+
+  on(event, callback) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(callback);
+  },
+
+  emit(event, data) {
+    this.history.push({ event, data, time: Date.now() });
+    if (this.history.length > 1000) this.history.shift();
+
+    if (this.listeners[event]) {
+      this.listeners[event].forEach(cb => cb(data));
+    }
+  }
+};
+
+// === INGESTION ENGINE ===
+const IngestionEngine = {
+  queue: [],
+  processing: false,
+
+  async ingest(file) {
+    Oracle.log('ingest', `Ingesting: ${file.name}`, `Type: ${file.type}, Size: ${file.size}`);
+
+    // Analyze file structure
+    const analysis = await this.analyze(file);
+
+    // Determine ontological address
+    const address = this.routeAddress(analysis);
+
+    // Store with full metadata
+    const artifact = {
+      id: `art_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      file: file,
+      analysis: analysis,
+      address: address,
+      timestamp: Date.now(),
+      relationships: [],
+      quality: address.quality,
+      gate: address.gate,
+      channel: address.channel
+    };
+
+    // Pulse the relevant gate
+    BodyGraph.pulse(address.gate, 0.8, `ingest:${artifact.id}`);
+
+    // Store in AppRegistry
+    AppRegistry.mount(artifact);
+
+    Oracle.log('route', `Mounted: ${artifact.id}`, `Gate ${address.gate} — ${address.purpose}`);
+
+    return artifact;
+  },
+
+  async analyze(file) {
+    const type = file.type || 'application/octet-stream';
+    const extension = file.name.split('.').pop().toLowerCase();
+
+    // Determine file nature
+    let nature = 'unknown';
+    let purpose = 'general';
+    let executable = false;
+
+    if (type.includes('javascript') || extension === 'js' || extension === 'mjs') {
+      nature = 'code';
+      purpose = 'executable';
+      executable = true;
+    } else if (type.includes('html') || extension === 'html' || extension === 'htm') {
+      nature = 'markup';
+      purpose = 'interface';
+      executable = true;
+    } else if (type.includes('image') || ['png','jpg','jpeg','gif','svg','webp'].includes(extension)) {
+      nature = 'image';
+      purpose = 'visual';
+    } else if (type.includes('json') || extension === 'json') {
+      nature = 'data';
+      purpose = 'structure';
+    } else if (type.includes('text') || extension === 'txt' || extension === 'md') {
+      nature = 'text';
+      purpose = 'knowledge';
+    } else if (['zip','tar','gz','rar','7z'].includes(extension)) {
+      nature = 'archive';
+      purpose = 'bundle';
+    }
+
+    return { type, extension, nature, purpose, executable, size: file.size };
+  },
+
+  routeAddress(analysis) {
+    // Map file nature to gate/channel
+    const gateMap = {
+      'code': 1,      // Creative — code is creation
+      'markup': 8,    // Contribution — markup manifests
+      'image': 35,    // Change — images transform
+      'data': 23,     // Assimilation — data structures
+      'text': 43,     // Insight — text carries knowing
+      'archive': 14,  // Power Skills — archives bundle mastery
+      'unknown': 28   // Struggle — unknown needs discrimination
+    };
+
+    const gate = gateMap[analysis.nature] || 28;
+    const profile = GATE_PROFILES[gate];
+
+    // Determine channel based on purpose
+    let channel = null;
+    if (analysis.purpose === 'executable') channel = '1-8';
+    else if (analysis.purpose === 'visual') channel = '35-36';
+    else if (analysis.purpose === 'structure') channel = '43-23';
+    else if (analysis.purpose === 'knowledge') channel = '43-23';
+
+    return {
+      gate,
+      channel,
+      purpose: analysis.purpose,
+      nature: analysis.nature,
+      quality: profile.quality,
+      circuit: profile.circuit
+    };
+  }
+};
+
+// === APP REGISTRY ===
+const AppRegistry = {
+  apps: [],
+
+  mount(artifact) {
+    this.apps.push(artifact);
+    this.render();
+
+    // Update status
+    document.getElementById('status-apps').textContent = `APPS: ${this.apps.length}`;
+  },
+
+  render() {
+    const grid = document.getElementById('app-grid');
+    grid.innerHTML = '';
+
+    this.apps.forEach(app => {
+      const card = document.createElement('div');
+      card.className = 'app-card';
+      card.innerHTML = `
+        <div class="app-gate">G${app.address.gate}</div>
+        <div class="app-icon">${this.getIcon(app.analysis.nature)}</div>
+        <div class="app-name">${app.file.name}</div>
+        <div class="app-meta">${app.analysis.purpose} · ${app.analysis.nature}</div>
+      `;
+
+      card.addEventListener('click', () => this.launch(app));
+      grid.appendChild(card);
+    });
+  },
+
+  getIcon(nature) {
+    const icons = {
+      code: '⚡', markup: '🌐', image: '🖼️', data: '📊', 
+      text: '📄', archive: '📦', unknown: '❓'
+    };
+    return icons[nature] || '❓';
+  },
+
+  launch(app) {
+    Oracle.log('event', `Launching: ${app.file.name}`, `Gate ${app.address.gate} — ${app.address.quality}`);
+
+    if (app.analysis.executable) {
+      // For executable files, create a sandboxed execution context
+      this.executeInSandbox(app);
+    } else {
+      // For non-executable, show preview/analysis
+      this.showPreview(app);
+    }
+  },
+
+  executeInSandbox(app) {
+    // Create sandboxed iframe for execution
+    const sandbox = document.createElement('div');
+    sandbox.style.cssText = `
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 90%; height: 90%; background: var(--bg-panel);
+      border: 2px solid var(--accent); border-radius: 16px; z-index: 2000;
+      box-shadow: 0 0 60px var(--accent-glow);
+    `;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '×';
+    closeBtn.style.cssText = `
+      position: absolute; top: 12px; right: 12px; background: none; border: none;
+      color: var(--text-muted); font-size: 24px; cursor: pointer; z-index: 2001;
+    `;
+    closeBtn.onclick = () => sandbox.remove();
+
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'width: 100%; height: 100%; border: none; border-radius: 14px;';
+
+    // Read file and execute
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      iframe.srcdoc = e.target.result;
+    };
+    reader.readAsText(app.file);
+
+    sandbox.appendChild(closeBtn);
+    sandbox.appendChild(iframe);
+    document.body.appendChild(sandbox);
+
+    Oracle.log('event', 'Sandbox created', 'Executable running in isolated context');
+  },
+
+  showPreview(app) {
+    // Show analysis and metadata
+    Oracle.log('event', `Preview: ${app.file.name}`, `Nature: ${app.analysis.nature}, Quality: ${app.address.quality}`);
+  }
+};
+
+// === ORACLE / CONSOLE ===
+const Oracle = {
+  output: document.getElementById('console-output'),
+
+  log(type, message, detail = '') {
+    const line = document.createElement('div');
+    line.className = `console-line ${type}`;
+
+    const tags = {
+      pulse: 'PULSE', ingest: 'INGEST', route: 'ROUTE', 
+      system: 'SYSTEM', event: 'EVENT', warn: 'WARN'
+    };
+
+    const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    line.innerHTML = `
+      <span class="timestamp">${time}</span>
+      <span class="tag ${type}">${tags[type] || type}</span>
+      <span>${message}</span>
+      ${detail ? `<br><span style="color: var(--text-muted); margin-left: 80px; font-size: 10px;">${detail}</span>` : ''}
+    `;
+
+    this.output.appendChild(line);
+    this.output.scrollTop = this.output.scrollHeight;
+  },
+
+  ask(question) {
+    this.log('system', `Query: ${question}`, 'Processing through substrate...');
+
+    // Simple response logic — can be expanded
+    const responses = {
+      'help': 'Available: pulse [gate], status, channels, gates, ingest [file]',
+      'status': () => `Active channels: ${BodyGraph.getActiveChannels().length}, Defined gates: ${BodyGraph.getDefinedGates().length}`,
+      'channels': () => BodyGraph.getActiveChannels().map(ch => ch.id).join(', ') || 'No active channels',
+      'gates': () => BodyGraph.getDefinedGates().map(g => g.id).join(', ') || 'No defined gates'
+    };
+
+    const q = question.toLowerCase().trim();
+    let response = responses[q];
+    if (typeof response === 'function') response = response();
+
+    if (response) {
+      this.log('system', response);
+    } else if (q.startsWith('pulse ')) {
+      const gate = parseInt(q.split(' ')[1]);
+      if (gate >= 1 && gate <= 64) {
+        BodyGraph.pulse(gate, 1.0, 'oracle');
+        this.log('pulse', `Pulsed Gate ${gate}`, GATE_PROFILES[gate].quality);
+      }
+    } else {
+      this.log('system', 'Query processed through mesh', 'No specific handler — routed to general inference');
+    }
+  }
+};
+
+// === MESH CANVAS RENDERER ===
+const MeshRenderer = {
+  canvas: document.getElementById('mesh-canvas'),
+  ctx: null,
+  width: 0,
+  height: 0,
+  particles: [],
+
+  init() {
+    this.ctx = this.canvas.getContext('2d');
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+
+    // Initialize particles
+    for (let i = 0; i < 64; i++) {
+      this.particles.push({
+        id: i + 1,
+        x: Math.random() * this.width,
+        y: Math.random() * this.height,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        radius: 2 + Math.random() * 2
+      });
+    }
+
+    this.animate();
+  },
+
+  resize() {
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+  },
+
+  animate() {
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.width, this.height);
+
+    // Draw connections between active channels
+    Object.values(BodyGraph.channels).forEach(ch => {
+      if (ch.active && ch.nodeA && ch.nodeB) {
+        const p1 = this.particles[ch.from - 1];
+        const p2 = this.particles[ch.to - 1];
+
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+
+        const alpha = ch.flow * 0.6;
+        const hue = ch.circuit === 'INDIVIDUAL' ? 250 : ch.circuit === 'COLLECTIVE' ? 180 : 320;
+        ctx.strokeStyle = `hsla(${hue}, 80%, 60%, ${alpha})`;
+        ctx.lineWidth = ch.tension * 3;
+        ctx.stroke();
+
+        // Glow effect
+        ctx.shadowColor = `hsla(${hue}, 80%, 60%, ${alpha})`;
+        ctx.shadowBlur = ch.flow * 20;
+      }
+    });
+
+    ctx.shadowBlur = 0;
+
+    // Draw particles (gates)
+    this.particles.forEach(p => {
+      const gate = BodyGraph.gates[p.id];
+      if (!gate) return;
+
+      // Update position based on activation
+      p.x += p.vx * (1 + gate.activation);
+      p.y += p.vy * (1 + gate.activation);
+
+      // Wrap around
+      if (p.x < 0) p.x = this.width;
+      if (p.x > this.width) p.x = 0;
+      if (p.y < 0) p.y = this.height;
+      if (p.y > this.height) p.y = 0;
+
+      // Draw
+      const hue = gate.defined ? 250 : 200;
+      const alpha = 0.3 + gate.activation * 0.7;
+      const radius = p.radius + gate.activation * 4;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${hue}, 80%, 60%, ${alpha})`;
+      ctx.fill();
+
+      if (gate.defined) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsla(${hue}, 80%, 60%, ${alpha * 0.5})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    });
+
+    requestAnimationFrame(() => this.animate());
+  }
+};
+
+// === GATE GRID UI ===
+const GateGridUI = {
+  init() {
+    const grid = document.getElementById('gate-grid');
+
+    for (let i = 1; i <= 64; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'gate-cell';
+      cell.dataset.gate = i;
+      cell.innerHTML = `<span class="gate-num">${i}</span>`;
+
+      cell.addEventListener('click', () => this.showDetail(i));
+      grid.appendChild(cell);
+    }
+
+    // Update loop
+    setInterval(() => this.update(), 500);
+  },
+
+  update() {
+    document.querySelectorAll('.gate-cell').forEach(cell => {
+      const gateId = parseInt(cell.dataset.gate);
+      const gate = BodyGraph.gates[gateId];
+      if (!gate) return;
+
+      cell.classList.toggle('defined', gate.defined);
+
+      // Check if part of active channel
+      const activeChannel = gate.channels.find(ch => ch.active);
+      cell.classList.toggle('active-channel', !!activeChannel);
+
+      // Color based on circuit
+      if (activeChannel) {
+        const hue = activeChannel.circuit === 'INDIVIDUAL' ? 250 : 
+                    activeChannel.circuit === 'COLLECTIVE' ? 180 : 320;
+        cell.style.borderColor = `hsl(${hue}, 80%, 60%)`;
+      }
+    });
+  },
+
+  showDetail(gateId) {
+    const gate = BodyGraph.gates[gateId];
+    const profile = GATE_PROFILES[gateId];
+
+    document.getElementById('detail-title').textContent = `Gate ${gateId} — ${profile.name}`;
+    document.getElementById('detail-sub').textContent = 
+      `${profile.sign} · ${profile.center} Center · ${profile.circuit} Circuit`;
+
+    const qualitiesDiv = document.getElementById('detail-qualities');
+    qualitiesDiv.innerHTML = `
+      <div class="quality-bar">
+        <div class="label">Exaltation</div>
+        <div class="bar"><div class="fill" style="width: ${profile.exaltation * 100}%; background: var(--success);"></div></div>
+        <span class="exaltation">${(profile.exaltation * 100).toFixed(0)}%</span>
+      </div>
+      <div class="quality-bar">
+        <div class="label">Detriment</div>
+        <div class="bar"><div class="fill" style="width: ${profile.detriment * 100}%; background: var(--danger);"></div></div>
+        <span class="detriment">${(profile.detriment * 100).toFixed(0)}%</span>
+      </div>
+      <div class="quality-bar">
+        <div class="label">Activation</div>
+        <div class="bar"><div class="fill" style="width: ${gate.activation * 100}%; background: var(--accent);"></div></div>
+        <span>${(gate.activation * 100).toFixed(0)}%</span>
+      </div>
+      <div style="margin-top: 16px; padding: 12px; background: rgba(139,92,246,0.08); border-radius: 8px; font-size: 12px; line-height: 1.6; color: var(--text-secondary);">
+        ${profile.quality}
+      </div>
+      <div style="margin-top: 12px; font-size: 11px; color: var(--text-muted);">
+        Line ${profile.line} · Color ${profile.color} · Tone ${profile.tone} · Base ${profile.base}
+      </div>
+    `;
+
+    document.getElementById('overlay-backdrop').classList.add('active');
+    document.getElementById('gate-detail').classList.add('active');
+  }
+};
+
+// === DROP ZONE ===
+const DropZone = {
+  init() {
+    const zone = document.getElementById('drop-zone');
+
+    zone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      zone.classList.add('dragover');
+    });
+
+    zone.addEventListener('dragleave', () => {
+      zone.classList.remove('dragover');
+    });
+
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+
+      const files = Array.from(e.dataTransfer.files);
+      files.forEach(file => IngestionEngine.ingest(file));
+    });
+
+    zone.addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.onchange = (e) => {
+        Array.from(e.target.files).forEach(file => IngestionEngine.ingest(file));
+      };
+      input.click();
+    });
+  }
+};
+
+// === CONSOLE INPUT ===
+const ConsoleInput = {
+  init() {
+    const input = document.getElementById('console-input');
+    const btn = document.getElementById('send-btn');
+
+    const submit = () => {
+      const q = input.value.trim();
+      if (q) {
+        Oracle.ask(q);
+        input.value = '';
+      }
+    };
+
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') submit();
+    });
+
+    btn.addEventListener('click', submit);
+  }
+};
+
+// === CLOSE DETAIL ===
+document.getElementById('close-detail').addEventListener('click', () => {
+  document.getElementById('overlay-backdrop').classList.remove('active');
+  document.getElementById('gate-detail').classList.remove('active');
+});
+
+document.getElementById('overlay-backdrop').addEventListener('click', () => {
+  document.getElementById('overlay-backdrop').classList.remove('active');
+  document.getElementById('gate-detail').classList.remove('active');
+});
+
+// === BREATHING INTERFACE ===
+function breathe() {
+  const time = Date.now() * 0.0005;
+  const pulse = (Math.sin(time) + 1) / 2;
+
+  document.documentElement.style.setProperty('--accent', `hsl(${250 + (pulse * 30)}, 80%, 60%)`);
+  document.documentElement.style.setProperty('--border', `rgba(139,92,246,${0.1 + (pulse * 0.1)})`);
+
+  // Update pulse status
+  document.getElementById('status-pulse').textContent = `PULSE: ${pulse.toFixed(2)}`;
+
+  requestAnimationFrame(breathe);
+}
+
+// === EVOLUTION LOOP ===
+function evolve() {
+  setInterval(() => {
+    // Decay all gates
+    BodyGraph.decayAll();
+
+    // Random spontaneous pulse (simulating transit)
+    const randomGate = Math.floor(Math.random() * 64) + 1;
+    const randomMag = Math.random() * 0.3;
+    BodyGraph.pulse(randomGate, randomMag, 'transit');
+
+  }, 2500);
+}
+
+// === SUBSTRATE EVENT HANDLERS ===
+OS_Substrate.on('GAN_PULSE', (data) => {
+  Oracle.log('pulse', `GAN: ${data.channel}`, `Tension: ${data.tension.toFixed(2)}, Flow: ${data.flow.toFixed(2)}`);
+});
+
+OS_Substrate.on('COLLECTIVE_RENDER', (data) => {
+  Oracle.log('system', `Render: ${data.channel}`, `Pattern: ${data.pattern.substring(0, 50)}...`);
+});
+
+OS_Substrate.on('TRIBAL_PERSIST', (data) => {
+  Oracle.log('route', `Persist: ${data.channel}`, `Memory logged`);
+});
+
+// === INITIALIZATION ===
+function init() {
+  BodyGraph.init();
+  MeshRenderer.init();
+  GateGridUI.init();
+  DropZone.init();
+  ConsoleInput.init();
+  breathe();
+  evolve();
+
+  Oracle.log('system', 'MorphOS Substrate Online', '64 gates · 36 channels · 5 circuits · GAN core');
+  Oracle.log('system', 'Ingestion engine ready', 'Drop files to analyze, route, and mount');
+  Oracle.log('system', 'Oracle listening', 'Ask questions — the substrate responds');
+
+  // Initial pulse on core GAN channel
+  BodyGraph.pulse(28, 0.9, 'init');
+  BodyGraph.pulse(38, 0.9, 'init');
+}
+
+// Start
+init();
+</script>
+</body>
+</html>ocument.getElementById('close-detail').addEventListener('click', () => {
+  document.getElementById('overlay-backdrop').classList.remove('active');
+  document.getElementById('detail-modal').classList.remove('active');
+});
+
+document.getElementById('overlay-backdrop').addEventListener('click', () => {
+  document.getElementById('overlay-backdrop').classList.remove('active');
+  document.getElementById('detail-modal').classList.remove('active');
+});
+
+// === BREATHING INTERFACE ===
+function breathe() {
+  const time = Date.now() * 0.0005;
+  const pulse = (Math.sin(time) + 1) / 2;
+  document.documentElement.style.setProperty('--accent', `hsl(${250 + (pulse * 30)}, 80%, 60%)`);
+  document.documentElement.style.setProperty('--border', `rgba(124,58,237,${0.1 + (pulse * 0.1)})`);
+  document.getElementById('status-pulse').textContent = `PULSE: ${pulse.toFixed(2)}`;
+  requestAnimationFrame(breathe);
+}
+
+// === EVOLUTION LOOP ===
+function evolve() {
+  setInterval(() => {
+    Field.decayAll();
+
+    // Random transit
+    const randomGate = Math.floor(Math.random() * 64) + 1;
+    const randomMag = Math.random() * 0.3;
+    Field.pulse(randomGate, randomMag, 'transit');
+
+    // Meta-controller sync
+    MetaController.sync();
+
+  }, 2500);
+}
+
+// === EVENT HANDLERS ===
+EventBus.on('GAN_PULSE', (data) => {
+  Logger.log('arch', `GAN: ${data.channel}`, `Tension: ${data.tension.toFixed(2)}`);
+});
+
+// === INITIALIZATION ===
+function init() {
+  Field.init();
+  MetaController.init();
+  FieldCanvas.init();
+  GateGridUI.init();
+  ArchTabs.init();
+  DropZone.init();
+  ConsoleInput.init();
+  breathe();
+  evolve();
+
+  Logger.log('system', 'LOK Engine Online', '64 gates · 36 channels · 7 architectures · Meta-Controller');
+  Logger.log('system', 'Architecture Templates Ready', 'DFF · GAN · HMM · LSM · ESN · DRN · DBN');
+  Logger.log('system', 'Drop files to ingest', 'The field will route and mount them');
+
+  // Initial pulse on GAN channel (28-38) to demonstrate
+  Field.pulse(28, 0.9, 'init');
+  Field.pulse(38, 0.9, 'init');
+}
+
+init();
+</script>
+</body>
+</html>

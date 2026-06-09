@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>LOK Ingestor</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --bg:#030305; --panel:#080810; --text:#e0e0e0; --muted:#555;
+    --understanding:#3b82f6; --knowing:#a855f7; --sensing:#22c55e;
+    --ego:#ef4444; --centering:#f59e0b; --integration:#ec4899;
+    --gate-active:#00ff88; --gate-dormant:#1a1a2e;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'SF Mono',monospace; min-height:100vh; overflow-x:hidden; font-size:13px; }
+  .header { padding:12px 16px; background:var(--panel); border-bottom:1px solid #1a1a2e; display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:100; }
+  .logo { width:40px; height:40px; border-radius:12px; background:linear-gradient(135deg,var(--knowing),var(--integration)); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:18px; animation:pulse 3s infinite; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(168,85,247,0.4)} 50%{box-shadow:0 0 0 10px rgba(168,85,247,0)} }
+  .header h1 { font-size:16px; font-weight:700; letter-spacing:1px; }
+  .header .badge { font-size:10px; padding:4px 10px; border-radius:20px; background:#1a1030; color:var(--knowing); border:1px solid #2a1a50; margin-left:auto; }
+  .main { display:grid; grid-template-columns:1fr 340px; gap:16px; padding:16px; }
+  @media(max-width:900px){ .main { grid-template-columns:1fr; } }
+  .left-col { display:flex; flex-direction:column; gap:16px; }
+  .dropzone { padding:40px 20px; border:2px dashed #222; border-radius:16px; text-align:center; transition:all 0.3s; background:var(--panel); cursor:pointer; position:relative; }
+  .dropzone.dragover { border-color:var(--knowing); background:#120a20; }
+  .dropzone .icon { font-size:40px; margin-bottom:10px; }
+  .dropzone p { font-size:15px; font-weight:600; }
+  .dropzone .hint { font-size:12px; color:var(--muted); margin-top:6px; }
+  .progress-bar { height:3px; background:linear-gradient(90deg,var(--knowing),var(--integration)); border-radius:2px; margin-top:10px; transition:width 0.4s; width:0%; }
+  .pipeline-section { background:var(--panel); border-radius:16px; border:1px solid #1a1a2e; overflow:hidden; }
+  .pipeline-header { padding:12px 14px; border-bottom:1px solid #1a1a2e; font-size:12px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .pipeline-header .dot { width:8px; height:8px; border-radius:50%; }
+  .pipeline-content { padding:14px; }
+  .step-row { display:flex; align-items:center; gap:10px; padding:6px 0; font-size:11px; }
+  .step-num { width:20px; height:20px; border-radius:50%; background:#1a1030; color:var(--knowing); font-size:9px; display:flex; align-items:center; justify-content:center; font-weight:700; border:1px solid #2a1a50; }
+  .step-done { background:var(--gate-active); color:#000; border-color:var(--gate-active); }
+  .step-name { color:var(--muted); }
+  .step-name.done { color:var(--text); }
+  .step-name.active { color:var(--integration); font-weight:700; }
+  .assigned-channels { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .channel-tag { font-size:10px; padding:4px 10px; border-radius:12px; border:1px solid; font-weight:700; }
+  .regen-preview { background:#0a0a0f; border:1px solid #1a1a2e; border-radius:10px; padding:12px; margin-top:10px; font-size:11px; font-family:monospace; color:var(--muted); max-height:200px; overflow-y:auto; }
+  .regen-preview .line { padding:2px 0; border-bottom:1px solid #0f0f18; }
+  .regen-preview .line:last-child { border-bottom:none; }
+  .regen-preview .key { color:var(--integration); font-weight:700; }
+  .regen-preview .arch { color:var(--knowing); }
+  .file-card { background:#0a0a0f; border:1px solid #151520; border-radius:12px; padding:14px; margin-bottom:8px; }
+  .file-card .top { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .file-card .icon { font-size:24px; }
+  .file-card .name { font-weight:700; font-size:13px; flex:1; word-break:break-all; }
+  .file-card .size { font-size:11px; color:var(--muted); }
+  .file-card .type-badge { font-size:10px; padding:3px 10px; border-radius:20px; background:#1a1030; color:var(--knowing); border:1px solid #2a1a50; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .btn { flex:1; min-width:100px; padding:10px 14px; border-radius:10px; border:none; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px; font-family:inherit; }
+  .btn-analyze { background:linear-gradient(135deg,#1a1030,#2a1a50); color:var(--knowing); border:1px solid #3a2a70; }
+  .btn-analyze:hover { background:var(--knowing); color:#fff; }
+  .btn-regen { background:linear-gradient(135deg,#0a1a20,#0a2a30); color:var(--integration); border:1px solid #1a3a40; }
+  .btn-regen:hover { background:var(--integration); color:#000; }
+  .btn-mounted { background:var(--gate-active); color:#000; }
+  .substrate-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; padding:16px; }
+  .mounted-item { background:#0a0a0f; border:1px solid #1a1a2e; border-radius:14px; padding:14px; text-align:center; cursor:pointer; transition:all 0.2s; position:relative; }
+  .mounted-item:hover { border-color:var(--knowing); transform:translateY(-3px); }
+  .mounted-item .m-icon { font-size:32px; margin-bottom:8px; }
+  .mounted-item .m-name { font-size:12px; font-weight:700; word-break:break-all; }
+  .mounted-item .m-type { font-size:10px; color:var(--muted); margin-top:4px; }
+  .mounted-item .m-channels { font-size:9px; margin-top:4px; }
+  .mounted-item .run-btn { position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:50%; background:var(--knowing); color:#fff; border:none; font-size:12px; cursor:pointer; display:none; align-items:center; justify-content:center; }
+  .mounted-item:hover .run-btn { display:flex; }
+  .empty-state { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+  .gate-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:3px; padding:12px; }
+  .gate-cell { aspect-ratio:1; border-radius:4px; background:var(--gate-dormant); border:1px solid #151520; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; cursor:pointer; transition:all 0.3s; }
+  .gate-cell:hover { transform:scale(1.2); z-index:10; }
+  .gate-cell.active { background:var(--gate-active); color:#000; box-shadow:0 0 8px rgba(0,255,136,0.4); }
+  .gate-cell.assigned { border-color:var(--knowing); box-shadow:0 0 4px rgba(168,85,247,0.3); }
+  .console { padding:10px 14px; font-size:10px; font-family:monospace; color:var(--muted); max-height:120px; overflow-y:auto; border-top:1px solid #1a1a2e; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(100px); background:var(--panel); border:1px solid #333; padding:12px 20px; border-radius:12px; font-size:12px; z-index:1000; transition:transform 0.3s; }
+  .toast.show { transform:translateX(-50%) translateY(0); }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">L</div>
+  <h1>LOK Ingestor</h1>
+  <div class="badge" id="statusBadge">Ready</div>
+</div>
+
+<div class="main">
+  <div class="left-col">
+    <div class="dropzone" id="dropzone">
+      <div class="icon">📦</div>
+      <p>Drop files, folders, or ZIPs</p>
+      <div class="hint">Ingest → Analyze → Assign Channels → Regenerate → Mount</div>
+      <input type="file" id="fileInput" multiple webkitdirectory style="display:none">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="pipeline-section" id="pipelineSection" style="display:none">
+      <div class="pipeline-header">
+        <div class="dot" style="background:var(--integration)"></div>
+        Ingestion Pipeline — <span id="pipelineFile">-</span>
+      </div>
+      <div class="pipeline-content" id="pipelineContent"></div>
+    </div>
+
+    <div class="pipeline-section" id="filesSection" style="display:none">
+      <div class="pipeline-header">
+        <div class="dot" style="background:var(--gate-active)"></div>
+        Analyzed Files — <span id="filesCount">0</span>
+      </div>
+      <div class="pipeline-content" id="filesList"></div>
+    </div>
+
+    <div class="pipeline-section">
+      <div class="pipeline-header">
+        <div class="dot" style="background:var(--gate-active)"></div>
+        Live Substrate — <span id="mountedCount">0</span> mounted
+      </div>
+      <div class="substrate-grid" id="mountedGrid">
+        <div class="empty-state">Nothing mounted yet. Feed the ingester. 🪷</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-col">
+    <div class="pipeline-section">
+      <div class="pipeline-header">
+        <div class="dot" style="background:var(--knowing)"></div>
+        64-Gate Field — Assigned channels light up
+      </div>
+      <div class="gate-grid" id="gateGrid"></div>
+    </div>
+
+    <div class="pipeline-section" id="channelDetail" style="display:none">
+      <div class="pipeline-header">
+        <div class="dot" style="background:var(--integration)"></div>
+        Assigned Channel Detail
+      </div>
+      <div class="pipeline-content" id="detailContent"></div>
+    </div>
+  </div>
+</div>
+
+<div class="pipeline-section" style="margin:0 16px 16px;">
+  <div class="pipeline-header">📜 Console</div>
+  <div class="console" id="console"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+
+// ═══════════════════════════════════════════════════════════════
+// LOK INGESTOR
+// File → MRNN Analysis → LOK Channel Assignment → Regeneration → Mount
+// ═══════════════════════════════════════════════════════════════
+
+const $ = id => document.getElementById(id);
+const log = msg => {
+  const c = $('console');
+  const line = document.createElement('div');
+  line.textContent = `[${new Date().toLocaleTimeString().split(' ')[0]}] ${msg}`;
+  c.appendChild(line); c.scrollTop = c.scrollHeight;
+};
+const toast = msg => {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// THE 36 CHANNELS — Full architecture map with colors
+// ═══════════════════════════════════════════════════════════════
+const CHANNELS = {
+  "63-4":   { name: "Logic", arch: "DFF", color: "#3b82f6", circuit: "Understanding", gates: [63,4], desc: "Doubt → Formula. Feedforward pattern abstraction.", fn: "DFF(doubt) → layered_transform → formula", params: {layers: 3, dropout: 0.2} },
+  "17-62":  { name: "Acceptance", arch: "RBM", color: "#60a5fa", circuit: "Understanding", gates: [17,62], desc: "Opinion ↔ Facts bidirectional energy minimization.", fn: "RBM(visible=facts, hidden=opinion) → energy_minimize", params: {temp: 1.0, iterations: 100} },
+  "18-58":  { name: "Judgment", arch: "Hopfield", color: "#93c5fd", circuit: "Understanding", gates: [18,58], desc: "Error correction toward stored ideal pattern.", fn: "Hopfield(input) → attractor_recovery → ideal", params: {beta: 2.0, capacity: 50} },
+  "16-48":  { name: "Wavelength", arch: "SAE", color: "#bfdbfe", circuit: "Understanding", gates: [16,48], desc: "Deep knowledge → sparse efficient expression.", fn: "SAE(encode) → latent_compression → sparse_decode", params: {sparsity: 0.05, beta: 3} },
+  "9-52":   { name: "Concentration", arch: "ELM", color: "#1e40af", circuit: "Understanding", gates: [9,52], desc: "Fixed random weights, concentrated pattern reading.", fn: "ELM(random_weights) → fixed_projection → output", params: {neurons: 500, activation: "sigmoid"} },
+  "15-5":   { name: "Rhythm", arch: "Kohonen", color: "#1e3a8a", circuit: "Understanding", gates: [15,5], desc: "Self-organizing map finding natural rhythm.", fn: "SOM(inputs) → topology_preserve → cluster_map", params: {grid: "10x10", sigma: 1.0} },
+  "31-7":   { name: "Alpha", arch: "DCN", color: "#172554", circuit: "Understanding", gates: [31,7], desc: "Hierarchical leadership scanning at multiple scales.", fn: "DCN(conv_layers) → hierarchical_features → global_pattern", params: {filters: [32,64,128], kernel: 3} },
+  "3-60":   { name: "Mutation", arch: "LSM", color: "#a855f7", circuit: "Knowing", gates: [3,60], desc: "Pulsed reservoir — mutative, on/off, unpredictable.", fn: "LSM(reservoir) → pulse_fire → state_transition", params: {reservoir_size: 1000, spectral_radius: 0.9} },
+  "61-24":  { name: "Awareness", arch: "NTM", color: "#c084fc", circuit: "Knowing", gates: [61,24], desc: "External memory access to the unknowable.", fn: "NTM(controller) → read_write(memory) → retrieve", params: {memory_slots: 128, slot_size: 20} },
+  "43-23":  { name: "Structuring", arch: "DeconvNet", color: "#d8b4fe", circuit: "Knowing", gates: [43,23], desc: "Unpacking compressed internal knowing.", fn: "Deconv(latent) → upsample → structured_output", params: {layers: 4, filters: [512,256,128,64]} },
+  "28-38":  { name: "Struggle", arch: "GAN", color: "#9333ea", circuit: "Knowing", gates: [28,38], desc: "Generator vs Discriminator — productive opposition.", fn: "GAN(generator, discriminator) → adversarial_train → emergent", params: {lr_g: 0.0002, lr_d: 0.0002, beta: 0.5} },
+  "20-57":  { name: "Brainwave", arch: "ESN", color: "#7e22ce", circuit: "Knowing", gates: [20,57], desc: "Present-moment voice — reservoir → immediate output.", fn: "ESN(reservoir) → readout → voice_now", params: {reservoir: 500, leaking_rate: 0.3} },
+  "55-39":  { name: "Emoting", arch: "Capsule", color: "#6b21a8", circuit: "Knowing", gates: [55,39], desc: "Spirit maintaining orientation through provocation.", fn: "Capsule(pose_matrix) → dynamic_routing → oriented_output", params: {capsules: 10, dim: 16, routings: 3} },
+  "12-22":  { name: "Openness", arch: "VAE", color: "#581c87", circuit: "Knowing", gates: [12,22], desc: "Latent social/emotional encoding/decoding.", fn: "VAE(encoder) → latent_sample → decoder_reconstruct", params: {latent_dim: 32, kl_weight: 0.001} },
+  "2-14":   { name: "The Beat", arch: "RBF", color: "#4c1d95", circuit: "Knowing", gates: [2,14], desc: "Radial activation from center — directional resonance.", fn: "RBF(centers) → gaussian_activation → proximity_output", params: {centers: 20, sigma: 1.0} },
+  "8-1":    { name: "Inspiration", arch: "Attention", color: "#3b0764", circuit: "Knowing", gates: [8,1], desc: "Attention mechanism — makes signals salient.", fn: "Attention(Q,K,V) → softmax(QK^T/sqrt(d))V → salient", params: {heads: 8, d_k: 64} },
+  "42-53":  { name: "Maturation", arch: "MarkovChain", color: "#22c55e", circuit: "Sensing", gates: [42,53], desc: "Cyclical state progression — complete to start.", fn: "MC(state_t) → transition_matrix → state_t+1", params: {states: 10, transition: "learned"} },
+  "30-41":  { name: "Recognition", arch: "RBM", color: "#4ade80", circuit: "Sensing", gates: [30,41], desc: "Desire (visible) ↔ Feeling (hidden) constraint.", fn: "RBM(visible=desire, hidden=feeling) → align", params: {temp: 0.8, iterations: 50} },
+  "35-36":  { name: "Transitoriness", arch: "VAE", color: "#86efac", circuit: "Sensing", gates: [35,36], desc: "Experience → latent memory → wisdom reconstruction.", fn: "VAE(experience) → latent_memory → wisdom_decode", params: {latent_dim: 64, recon_weight: 1.0} },
+  "64-47":  { name: "Abstraction", arch: "DNC", color: "#16a34a", circuit: "Sensing", gates: [64,47], desc: "Chaotic memory read/write → coherent meaning.", fn: "DNC(controller) → read_write(external_memory) → meaning", params: {memory_size: 256, word_size: 64} },
+  "11-56":  { name: "Curiosity", arch: "GAN", color: "#15803d", circuit: "Sensing", gates: [11,56], desc: "Idea generator vs Story discriminator.", fn: "GAN(ideas, stories) → narrative_survival → curiosity", params: {lr_g: 0.0001, lr_d: 0.0004} },
+  "46-29":  { name: "Discovery", arch: "DCIGN", color: "#166534", circuit: "Sensing", gates: [46,29], desc: "Surface → inverse → hidden structure discovery.", fn: "DCIGN(surface) → inverse_graphics → hidden_structure", params: {layers: 6, inverse_steps: 10} },
+  "33-13":  { name: "Prodigal", arch: "NTM", color: "#14532d", circuit: "Sensing", gates: [33,13], desc: "Memory keeper — read/write with timed release.", fn: "NTM(read_head, write_head) → selective_storage → timed_release", params: {memory_slots: 256, attention: "content_based"} },
+  "25-51":  { name: "Initiation", arch: "BinaryHMM", color: "#ef4444", circuit: "Ego", gates: [25,51], desc: "Life/death survival boundary — hard margin.", fn: "HMM(hidden=alive/dead) → binary_emission → survival", params: {states: 2, transitions: "absorbing"} },
+  "21-45":  { name: "Money Line", arch: "ContinuousHMM", color: "#f87171", circuit: "Ego", gates: [21,45], desc: "Running ledger of trust — soft margin.", fn: "HMM(hidden=trust) → continuous_emission → deal_value", params: {states: 5, emission: "gaussian"} },
+  "26-44":  { name: "Trickster", arch: "SwitchingHMM", color: "#fca5a5", circuit: "Ego", gates: [26,44], desc: "Deception detection — genuine vs manipulative.", fn: "HMM(hidden=genuine/manipulative) → switch_detect → trust", params: {states: 2, switch_prob: 0.1} },
+  "37-40":  { name: "Community", arch: "FactorialHMM", color: "#b91c1c", circuit: "Ego", gates: [37,40], desc: "Multiple loyalty obligations — factorial states.", fn: "FHMM(family,tribal,self) → multi_emission → obligation", params: {chains: 3, states_per_chain: 4} },
+  "19-49":  { name: "Synthesis", arch: "InfiniteHMM", color: "#7f1d1d", circuit: "Ego", gates: [19,49], desc: "Cumulative principle violations — infinite states.", fn: "iHMM(hidden=standard) → stick_breaking → acceptance", params: {alpha: 1.0, gamma: 1.0} },
+  "10-34":  { name: "Behavior/Action", arch: "DRN", color: "#f59e0b", circuit: "Centering", gates: [10,34], desc: "Identity persists through action — residual skip.", fn: "DRN(input) → residual_block → identity_preserved", params: {depth: 50, blocks: 4} },
+  "25-51c": { name: "Initiation/Shock", arch: "DAE", color: "#fbbf24", circuit: "Centering", gates: [25,51], desc: "Innocence reconstructed through shock corruption.", fn: "DAE(corrupt_input) → denoise → clean_reconstruct", params: {noise_rate: 0.3, hidden: [512,256]} },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// FILE ANALYSIS → GATE MAPPING
+// ═══════════════════════════════════════════════════════════════
+function fileToGates(analysis) {
+  const gates = [];
+  if (analysis.components?.length > 0) gates.push(1, 8);
+  if (analysis.functions?.length > 5) gates.push(2, 14);
+  if (analysis.complexity === 'high') gates.push(3, 60);
+  if (analysis.exports?.length > 0) gates.push(4, 63);
+  if (analysis.imports?.length > 3) gates.push(11, 56);
+  if (analysis.classes?.length > 0) gates.push(17, 62);
+  if (analysis.purpose?.includes('API')) gates.push(21, 45);
+  if (analysis.purpose?.includes('Game')) gates.push(28, 38);
+  if (analysis.purpose?.includes('UI')) gates.push(10, 20);
+  if (analysis.purpose?.includes('Audio')) gates.push(19, 49);
+  if (analysis.purpose?.includes('3D') || analysis.purpose?.includes('Graphics')) gates.push(32, 54);
+  if (analysis.purpose?.includes('Event') || analysis.purpose?.includes('Handler')) gates.push(37, 40);
+  if (analysis.lines > 500) gates.push(47, 64);
+  if (analysis.type === 'html-app') gates.push(10, 34);
+  if (analysis.type === 'script') gates.push(20, 57);
+  if (analysis.type === 'style') gates.push(23, 43);
+  if (analysis.type === 'data') gates.push(24, 61);
+  if (analysis.type === 'archive') gates.push(42, 53);
+  if (analysis.type === 'react') gates.push(3, 60, 28, 38);
+  if (analysis.type === 'module') gates.push(43, 23);
+  if (analysis.type === 'python') gates.push(64, 47);
+  if (analysis.type === 'image') gates.push(46, 29);
+  if (analysis.type === 'video') gates.push(35, 36);
+  if (analysis.type === 'audio') gates.push(55, 39);
+  return [...new Set(gates)];
+}
+
+function detectType(name, content) {
+  const ext = name.split('.').pop().toLowerCase();
+  if (name.endsWith('.zip') || name.endsWith('.tar') || name.endsWith('.gz')) return {icon:'📦', type:'archive', category:'bundle'};
+  if (ext==='js' || ext==='ts' || ext==='jsx' || ext==='tsx') {
+    if (content.includes('React') || content.includes('react')) return {icon:'⚛️', type:'react', category:'app'};
+    if (content.includes('export') || content.includes('import')) return {icon:'📦', type:'module', category:'functions'};
+    return {icon:'📜', type:'script', category:'functions'};
+  }
+  if (ext==='html') return {icon:'🌐', type:'html-app', category:'app'};
+  if (ext==='css') return {icon:'🎨', type:'style', category:'functions'};
+  if (ext==='json') return {icon:'📋', type:'data', category:'functions'};
+  if (ext==='py') return {icon:'🐍', type:'python', category:'functions'};
+  if (ext==='java' || ext==='kt') return {icon:'📱', type:'mobile', category:'app'};
+  if (['png','jpg','jpeg','gif','svg','webp'].includes(ext)) return {icon:'🖼️', type:'image', category:'asset'};
+  if (['mp4','webm','mov'].includes(ext)) return {icon:'🎬', type:'video', category:'asset'};
+  if (['mp3','wav','ogg'].includes(ext)) return {icon:'🎵', type:'audio', category:'asset'};
+  return {icon:'📄', type:ext||'file', category:'unknown'};
+}
+
+function analyzeFile(name, content, size) {
+  const info = detectType(name, content);
+  const lines = content.split('
+');
+  const analysis = { name, size, ...info, lines: lines.length, functions: [], exports: [], imports: [], classes: [], components: [], purpose: 'Unknown', complexity: 'low' };
+  const funcMatches = content.match(/function\s+(\w+)/g) || [];
+  analysis.functions = funcMatches.map(f => f.replace('function ',''));
+  const arrowMatches = content.match(/const\s+(\w+)\s*=\s*\(/g) || [];
+  arrowMatches.forEach(m => { const fn = m.match(/const\s+(\w+)/)?.[1]; if (fn && !analysis.functions.includes(fn)) analysis.functions.push(fn); });
+  const exportMatches = content.match(/export\s+(?:default\s+)?(?:function|class|const|let|var)?\s*(\w+)/g) || [];
+  analysis.exports = exportMatches.map(e => e.replace(/export\s+(default\s+)?(function|class|const|let|var)?\s*/, '').trim());
+  const importMatches = content.match(/from\s+['"]([^'"]+)['"]/g) || [];
+  analysis.imports = importMatches.map(i => i.match(/from\s+['"]([^'"]+)['"]/)?.[1]).filter(Boolean);
+  const classMatches = content.match(/class\s+(\w+)/g) || [];
+  analysis.classes = classMatches.map(c => c.replace('class ',''));
+  const compMatches = content.match(/(?:function|const)\s+(\w+)[\s\(]*.*\{[\s\S]*?return\s*\(/g) || [];
+  analysis.components = compMatches.map(c => c.match(/(?:function|const)\s+(\w+)/)?.[1]).filter(Boolean);
+  if (analysis.components.length > 0) analysis.purpose = 'UI Component / App';
+  else if (analysis.functions.length > 5) analysis.purpose = 'Utility Library';
+  else if (analysis.classes.length > 0) analysis.purpose = 'Class-based Module';
+  else if (analysis.imports.length > 3) analysis.purpose = 'Integration Module';
+  else if (content.includes('fetch') || content.includes('axios')) analysis.purpose = 'API Client';
+  else if (content.includes('event') || content.includes('addEventListener')) analysis.purpose = 'Event Handler';
+  else if (content.includes('canvas') || content.includes('ctx')) analysis.purpose = 'Graphics / Canvas';
+  else if (content.includes('audio') || content.includes('AudioContext')) analysis.purpose = 'Audio Engine';
+  else if (content.includes('three') || content.includes('3D') || content.includes('WebGL')) analysis.purpose = '3D / WebGL';
+  else if (content.includes('game') || content.includes('loop') || content.includes('requestAnimationFrame')) analysis.purpose = 'Game Engine';
+  if (lines.length > 500) analysis.complexity = 'high';
+  else if (lines.length > 100) analysis.complexity = 'medium';
+  return analysis;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LOK CHANNEL ASSIGNMENT
+// Maps file properties to channels based on gate activation
+// ═══════════════════════════════════════════════════════════════
+function assignChannels(gates) {
+  const assigned = [];
+  for (const [id, ch] of Object.entries(CHANNELS)) {
+    if (ch.gates.every(g => gates.includes(g))) {
+      assigned.push({ id, ...ch });
+    }
+  }
+  return assigned;
+}
+
+function generateRegenCode(analysis, channels) {
+  let code = `// LOK REGENERATED: ${analysis.name}
+`;
+  code += `// Purpose: ${analysis.purpose}
+`;
+  code += `// Complexity: ${analysis.complexity}
+`;
+  code += `// Assigned Channels: ${channels.map(c => c.name).join(', ')}
+
+`;
+
+  for (const ch of channels) {
+    code += `// ${ch.name} (${ch.arch}) — ${ch.circuit} Circuit
+`;
+    code += `// ${ch.desc}
+`;
+    code += `const ${ch.arch}_${ch.gates.join('')} = ${JSON.stringify(ch.params)};
+`;
+    code += `// ${ch.fn}
+
+`;
+  }
+
+  code += `// REGENERATED FUNCTION SHELL
+`;
+  code += `function ${analysis.name.replace(/\.\w+$/, '').replace(/[^a-zA-Z0-9]/g, '_')}(input) {
+`;
+  code += `  // ${analysis.purpose}
+`;
+  for (const ch of channels) {
+    code += `  // ${ch.arch} processing: ${ch.name}
+`;
+    code += `  const ${ch.name.toLowerCase().replace(/\s/g, '_')} = ${ch.fn.split('→')[0].trim()};
+`;
+  }
+  code += `  return { /* emergent output */ };
+`;
+  code += `}
+`;
+
+  return code;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUBSTRATE STATE
+// ═══════════════════════════════════════════════════════════════
+const SUBSTRATE = { mounted: new Map(), functions: new Map() };
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER GATE GRID
+// ═══════════════════════════════════════════════════════════════
+function renderGateGrid() {
+  const grid = $('gateGrid');
+  grid.innerHTML = '';
+  for (let i = 1; i <= 64; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'gate-cell';
+    cell.dataset.gate = i;
+    cell.textContent = i;
+    grid.appendChild(cell);
+  }
+}
+
+function updateGateVisuals(assignedGates) {
+  document.querySelectorAll('.gate-cell').forEach(cell => {
+    const g = parseInt(cell.dataset.gate);
+    cell.classList.toggle('active', assignedGates.has(g));
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER PIPELINE
+// ═══════════════════════════════════════════════════════════════
+function renderPipeline(fileName, analysis, gates, channels) {
+  const section = $('pipelineSection');
+  const content = $('pipelineContent');
+  section.style.display = 'block';
+  $('pipelineFile').textContent = fileName;
+
+  let html = '';
+  html += `<div class="step-row"><div class="step-num step-done">1</div><div class="step-name done">Ingest: ${fileName}</div></div>`;
+  html += `<div class="step-row"><div class="step-num step-done">2</div><div class="step-name done">Analyze: ${analysis.purpose} | ${analysis.lines} lines | ${analysis.complexity}</div></div>`;
+  html += `<div class="step-row"><div class="step-num step-done">3</div><div class="step-name done">Map to Gates: ${gates.join(', ')}</div></div>`;
+  html += `<div class="step-row"><div class="step-num step-active">4</div><div class="step-name active">Assign Channels: ${channels.length} channels</div></div>`;
+
+  html += `<div class="assigned-channels">`;
+  for (const ch of channels) {
+    html += `<div class="channel-tag" style="border-color:${ch.color};color:${ch.color}">${ch.name} (${ch.arch})</div>`;
+  }
+  html += `</div>`;
+
+  content.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER FILE CARD
+// ═══════════════════════════════════════════════════════════════
+function renderFileCard(analysis, fileObj, gates, channels) {
+  const id = 'file_' + Math.random().toString(36).substr(2, 9);
+  const card = document.createElement('div');
+  card.className = 'file-card';
+  card.id = id;
+
+  const funcs = analysis.functions.slice(0, 5).join(', ') + (analysis.functions.length > 5 ? '...' : '');
+  const channelNames = channels.map(c => `<span style="color:${c.color}">${c.name}</span>`).join(', ');
+
+  const regenCode = generateRegenCode(analysis, channels);
+  const regenId = 'regen_' + id;
+
+  card.innerHTML = `
+    <div class="top">
+      <div class="icon">${analysis.icon}</div>
+      <div class="name">${analysis.name}</div>
+      <div class="size">${(analysis.size/1024).toFixed(1)}KB</div>
+      <div class="type-badge">${analysis.type}</div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+      <strong>Purpose:</strong> ${analysis.purpose} | <strong>Lines:</strong> ${analysis.lines} | <strong>Gates:</strong> ${gates.join(', ')}
+    </div>
+    <div style="font-size:11px;margin-bottom:8px">
+      <strong>Assigned:</strong> ${channelNames}
+    </div>
+    <div class="regen-preview" id="${regenId}">
+      <div class="line"><span class="key">LOK REGENERATION PREVIEW</span></div>
+      ${regenCode.split('
+').slice(0, 15).map(l => `<div class="line">${l.replace(/</g, '&lt;')}</div>`).join('')}
+      <div class="line">...</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-analyze" onclick="showFullRegen('${regenId}', '${analysis.name.replace(/'/g, "\'")}', '${fileObj.content.replace(/'/g, "\'").replace(/
+/g, '\n').slice(0, 500)}', ${JSON.stringify(gates)}, ${JSON.stringify(channels.map(c => c.id))})">
+        🔍 Full Regen
+      </button>
+      <button class="btn btn-regen" onclick="mountAsZone('${id}', '${analysis.name.replace(/'/g, "\'")}', '${analysis.type}', '${analysis.purpose}', '${fileObj.content.replace(/'/g, "\'").replace(/
+/g, '\n').slice(0, 1000)}', ${JSON.stringify(gates)}, ${JSON.stringify(channels.map(c => c.id))})">
+        🏠 Mount as Zone
+      </button>
+    </div>
+  `;
+  return card;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MOUNT FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+window.showFullRegen = function(regenId, name, content, gates, channelIds) {
+  const analysis = { name, type: 'unknown', purpose: 'Regenerated', lines: content.split('\n').length, complexity: 'medium' };
+  const channels = channelIds.map(id => ({ id, ...CHANNELS[id] }));
+  const code = generateRegenCode(analysis, channels);
+  $(regenId).innerHTML = code.split('
+').map(l => `<div class="line">${l.replace(/</g, '&lt;')}</div>`).join('');
+  log(`Full regeneration shown for ${name}`);
+};
+
+window.mountAsZone = function(id, name, type, purpose, content, gates, channelIds) {
+  const card = $(id);
+  const zoneId = 'zone_' + Math.random().toString(36).substr(2, 9);
+  const channels = channelIds.map(cid => ({ id: cid, ...CHANNELS[cid] }));
+
+  SUBSTRATE.mounted.set(zoneId, {
+    name: name.replace(/\.\w+$/, ''),
+    type,
+    purpose,
+    code: content,
+    gates,
+    channels: channelIds,
+    mountedAt: new Date().toLocaleTimeString(),
+    icon: '🏠'
+  });
+
+  card.querySelector('.actions').innerHTML = `<button class="btn btn-mounted">✅ Mounted as Zone</button>`;
+  toast(`${name} mounted with ${channels.length} channels`);
+  log(`Mounted ${name} → ${channels.map(c => c.name).join(', ')}`);
+  updateMountedGrid();
+  updateGateVisuals(new Set(gates));
+};
+
+function updateMountedGrid() {
+  const grid = $('mountedGrid');
+  const count = $('mountedCount');
+  count.textContent = SUBSTRATE.mounted.size;
+
+  if (SUBSTRATE.mounted.size === 0) {
+    grid.innerHTML = '<div class="empty-state">Nothing mounted yet. Feed the ingester. 🪷</div>';
+    return;
+  }
+
+  grid.innerHTML = '';
+  SUBSTRATE.mounted.forEach((item, id) => {
+    const div = document.createElement('div');
+    div.className = 'mounted-item';
+    const chNames = item.channels?.slice(0, 3).map(cid => {
+      const ch = CHANNELS[cid];
+      return ch ? `<span style="color:${ch.color}">${ch.name}</span>` : cid;
+    }).join(', ') || '';
+    div.innerHTML = `
+      <button class="run-btn" onclick="runZone('${id}')">▶</button>
+      <div class="m-icon">🏠</div>
+      <div class="m-name">${item.name}</div>
+      <div class="m-type">${item.type} • ${item.purpose}</div>
+      <div class="m-channels">${chNames}</div>
+    `;
+    div.onclick = (e) => { if (!e.target.classList.contains('run-btn')) runZone(id); };
+    grid.appendChild(div);
+  });
+}
+
+window.runZone = function(id) {
+  const item = SUBSTRATE.mounted.get(id);
+  if (!item) return;
+  if (item.type === 'html-app' || item.code.includes('<html')) {
+    const blob = new Blob([item.code], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    toast(`Running ${item.name}...`);
+  } else {
+    toast(`${item.name} — view in console`);
+    console.log(item);
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// DRAG & DROP + FILE HANDLING
+// ═══════════════════════════════════════════════════════════════
+const dropzone = $('dropzone');
+const fileInput = $('fileInput');
+const filesList = $('filesList');
+const filesSection = $('filesSection');
+const progressBar = $('progressBar');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+async function handleFiles(fileList) {
+  const files = Array.from(fileList);
+  if (files.length === 0) return;
+  $('statusBadge').textContent = `Eating ${files.length}...`;
+  progressBar.style.width = '10%';
+  filesSection.style.display = 'block';
+
+  let processed = 0;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const progress = 10 + ((i + 1) / files.length) * 90;
+    progressBar.style.width = progress + '%';
+
+    try {
+      const content = await file.text();
+      const analysis = analyzeFile(file.name, content, file.size);
+      const gates = fileToGates(analysis);
+      const channels = assignChannels(gates);
+
+      renderPipeline(file.name, analysis, gates, channels);
+      const card = renderFileCard(analysis, {name: file.name, content}, gates, channels);
+      filesList.appendChild(card);
+      processed++;
+
+      log(`Ingested ${file.name} → ${analysis.purpose} → Gates [${gates.join(',')}] → ${channels.length} channels`);
+    } catch (e) {
+      log(`Binary/zip: ${file.name} — manual channel assignment needed`);
+    }
+  }
+
+  progressBar.style.width = '100%';
+  setTimeout(() => progressBar.style.width = '0%', 600);
+  $('filesCount').textContent = processed;
+  $('statusBadge').textContent = `${SUBSTRATE.mounted.size} zones | ${processed} files`;
+  log(`Pipeline complete: ${processed} files ingested, analyzed, channel-assigned`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PERSISTENCE
+// ═══════════════════════════════════════════════════════════════
+function saveSubstrate() {
+  const data = { mounted: Array.from(SUBSTRATE.mounted.entries()), savedAt: Date.now() };
+  localStorage.setItem('lok_ingestor_substrate', JSON.stringify(data));
+}
+function loadSubstrate() {
+  const raw = localStorage.getItem('lok_ingestor_substrate');
+  if (!raw) return;
+  try {
+    const data = JSON.parse(raw);
+    data.mounted.forEach(([k,v]) => SUBSTRATE.mounted.set(k,v));
+    updateMountedGrid();
+  } catch(e) {}
+}
+setInterval(saveSubstrate, 10000);
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+renderGateGrid();
+loadSubstrate();
+
+log('LOK Ingestor initialized');
+log('Pipeline: Ingest → Analyze → Assign Channels → Regenerate → Mount');
+log('Drop files to begin. Channels are assigned based on file structure.');
+
+console.log('%c🪷 LOK Ingestor loaded', 'color:#a855f7;font-weight:bold;font-size:14px');
+console.log('CHANNELS — 36 architectures mapped to HD gates');
+console.log('SUBSTRATE — live mounted zones');
+</script>
+
+</body>
+</html>
