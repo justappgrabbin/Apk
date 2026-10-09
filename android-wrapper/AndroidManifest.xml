@@ -9,7 +9,6 @@
   <uses-permission android:name="android.permission.CAMERA"/>
   <application
       android:label="Synthia Whole Computer"
-      android:icon="@android:drawable/sym_def_app_icon"
       android:allowBackup="true"
       android:usesCleartextTraffic="true">
     <activity
