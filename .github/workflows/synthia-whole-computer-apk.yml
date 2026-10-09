@@ -1,0 +1,81 @@
+name: Build Synthia Whole Computer APKs
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - synthia-whole-computer-v1-apk
+
+jobs:
+  whole-computer-webview:
+    name: Whole Computer APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout APK branch
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Android platform/build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build Synthia Whole Computer APK
+        shell: bash
+        run: |
+          chmod +x android-wrapper/build.sh
+          ./android-wrapper/build.sh
+
+      - name: Upload Whole Computer APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Synthia-Whole-Computer-APK
+          path: dist/Synthia-Whole-Computer.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  synthworld-321:
+    name: SynthWorld 321 APK
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Checkout SynthWorld 321 branch
+        uses: actions/checkout@v4
+        with:
+          repository: justappgrabbin/SYNTHWORLD-
+          ref: synthia-whole-computer-v1-apk
+
+      - name: Install Android export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.3.stable"
+          if [ -d /root/.local/share/godot/export_templates/4.3.stable ]; then
+            cp -a /root/.local/share/godot/export_templates/4.3.stable/. "$HOME/.local/share/godot/export_templates/4.3.stable/"
+          fi
+
+      - name: Validate and build SynthWorld
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../build
+          godot --headless --editor --quit
+          godot --headless --export-debug "Android" ../build/SynthWorld-321.apk
+          test -s ../build/SynthWorld-321.apk
+
+      - name: Upload SynthWorld APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SynthWorld-321-APK
+          path: build/SynthWorld-321.apk
+          if-no-files-found: error
+          retention-days: 30
