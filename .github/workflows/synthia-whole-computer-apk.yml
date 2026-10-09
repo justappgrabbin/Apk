@@ -24,8 +24,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          SDKROOT="$HOME/android-sdk"
+          mkdir -p "$SDKROOT/cmdline-tools"
+          curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o "$RUNNER_TEMP/cmdline-tools.zip"
+          unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/cmdline-tools"
+          rm -rf "$SDKROOT/cmdline-tools/latest"
+          mkdir -p "$SDKROOT/cmdline-tools/latest"
+          cp -a "$RUNNER_TEMP/cmdline-tools/cmdline-tools/." "$SDKROOT/cmdline-tools/latest/"
+          SDKMANAGER="$SDKROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$SDKROOT" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$SDKROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDKROOT" >> "$GITHUB_ENV"
 
       - name: Build Synthia Whole Computer APK
         shell: bash
