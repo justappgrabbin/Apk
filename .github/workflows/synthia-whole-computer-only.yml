@@ -1,0 +1,52 @@
+name: Build Synthia Whole Computer APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - synthia-whole-computer-v1-apk
+
+jobs:
+  apk:
+    name: Synthia Whole Computer APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout APK branch
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Android platform/build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKROOT="$HOME/android-sdk"
+          mkdir -p "$SDKROOT/cmdline-tools"
+          curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o "$RUNNER_TEMP/cmdline-tools.zip"
+          unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/cmdline-tools"
+          rm -rf "$SDKROOT/cmdline-tools/latest"
+          mkdir -p "$SDKROOT/cmdline-tools/latest"
+          cp -a "$RUNNER_TEMP/cmdline-tools/cmdline-tools/." "$SDKROOT/cmdline-tools/latest/"
+          SDKMANAGER="$SDKROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$SDKROOT" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$SDKROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDKROOT" >> "$GITHUB_ENV"
+
+      - name: Build signed APK
+        shell: bash
+        run: |
+          chmod +x android-wrapper/build.sh
+          ./android-wrapper/build.sh
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Synthia-Whole-Computer-APK
+          path: dist/Synthia-Whole-Computer.apk
+          if-no-files-found: error
+          retention-days: 90
